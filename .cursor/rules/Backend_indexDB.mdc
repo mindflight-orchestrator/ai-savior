@@ -1,0 +1,406 @@
+---
+alwaysApply: true
+---
+## 2. Database Initialization
+
+### 2.1 Upgrade Handler
+```typescript
+db.onupgradeneeded = (event) => {
+  const db = event.target.result;
+  
+  // Create object stores and indexes
+  if (!db.objectStoreNames.contains('conversations')) {
+    const conversationStore = db.createObjectStore('conversations', {
+      keyPath: 'id',
+      autoIncrement: true
+    });
+    conversationStore.createIndex('by-url', 'canonical_url', { unique: true });
+    conversationStore.createIndex('by-updated', 'updated_at');
+    conversationStore.createIndex('by-tags', 'tags', { multiEntry: true });
+    conversationStore.createIndex('by-source', 'source');
+    conversationStore.createIndex('by-collection', 'collection_id');
+  }
+  
+  // ... repeat for other stores
+};
+```
+
+### 2.2 Default Settings
+On first run, create default settings:
+```typescript
+{
+  id: 1,
+  storageMode: 'local',
+  beast_enabled_per_domain: {
+    'chat.openai.com': true,
+    'claude.ai': true,
+    'www.perplexity.ai': true
+  },
+  selective_mode_enabled: false,
+  devModeEnabled: false,
+  xpaths_by_domain: {} // Configured via Settings UI
+}
+```
+
+---
+
+## 3. Provider Interface
+
+### 3.1 StorageProvider Interface
+All storage providers must implement:
+
+```typescript
+interface StorageProvider {
+  // Conversations
+  getConversationByUrl(canonicalUrl: string): Promise<Conversation | null>;
+  saveConversation(conversation: Conversation): Promise<Conversation>;
+  searchConversations(query: string, filters?: SearchFilters): Promise<Conversation[]>;
+  deleteConversation(id: number): Promise<void>;
+  
+  // Snippets
+  listSnippets(filters?: SnippetFilters): Promise<Snippet[]>;
+  saveSnippet(snippet: Snippet): Promise<Snippet>;
+  deleteSnippet(id: number): Promise<void>;
+  
+  // Collections
+  listCollections(): Promise<Collection[]>;
+  saveCollection(collection: Collection): Promise<Collection>;
+  deleteCollection(id: number): Promise<void>;
+  
+  // Settings
+  getSettings(): Promise<Settings>;
+  saveSettings(settings: Settings): Promise<void>;
+}
+```
+
+### 3.2 IndexedDBProvider Implementation
+
+#### 3.2.1 getConversationByUrl
+```typescript
+async getConversationByUrl(canonicalUrl: string): Promise<Conversation | null> {
+  const db = await this.getDB();
+  const tx = db.transaction('conversations', 'readonly');
+  const store = tx.objectStore('conversations');
+  const index = store.index('by-url');
+  
+  return new Promise((resolve, reject) => {
+    const request = index.get(canonicalUrl);
+    request.onsuccess = () => resolve(request.result || null);
+    request.onerror = () => reject(request.error);
+  });
+}
+```
+
+#### 3.2.2 saveConversation
+**Logic**:
+1. If `conversation.id` exists → UPDATE
+2. If no `id` but `canonical_url` exists → UPDATE (find by URL)
+3. Otherwise → CREATE
+
+**Beast Mode Behavior**:
+- If updating existing conversation:
+  - Overwrite `content`, `description`, `tags`
+  - Increment `version`
+  - Update `updated_at`
+  - Preserve `ignore` flag (do not overwrite)
+
+```typescript
+async saveConversation(conversation: Conversation): Promise<Conversation> {
+  const db = await this.getDB();
+  const tx = db.transaction('conversations', 'readwrite');
+  const store = tx.objectStore('conversations');
+  
+  // Check if exists by URL
+  const existing = await this.getConversationByUrl(conversation.canonical_url);
+  
+  if (existing) {
+    // Update existing
+    const updated: Conversation = {
+      ...existing,
+      ...conversation,
+      id: existing.id, // Preserve ID
+      version: existing.version + 1, // Increment version
+      updated_at: new Date(),
+      ignore: existing.ignore, // Preserve ignore flag
+      created_at: existing.created_at // Preserve creation date
+    };
+    
+    return new Promise((resolve, reject) => {
+      const request = store.put(updated);
+      request.onsuccess = () => resolve(updated);
+      request.onerror = () => reject(request.error);
+    });
+  } else {
+    // Create new
+    const created: Conversation = {
+      ...conversation,
+      version: 1,
+      created_at: new Date(),
+      updated_at: new Date(),
+      ignore: conversation.ignore ?? false
+    };
+    
+    return new Promise((resolve, reject) => {
+      const request = store.add(created);
+      request.onsuccess = () => {
+        created.id = request.result as number;
+        resolve(created);
+      };
+      request.onerror = () => reject(request.error);
+    });
+  }
+}
+```
+
+#### 3.2.3 searchConversations
+**Strategy**: Load recent conversations, filter in memory (optimize later if needed)
+
+```typescript
+async searchConversations(
+  query: string,
+  filters?: SearchFilters
+): Promise<Conversation[]> {
+  const db = await this.getDB();
+  const tx = db.transaction('conversations', 'readonly');
+  const store = tx.objectStore('conversations');
+  const index = store.index('by-updated');
+  
+  // Load recent (limit 1000 for initial implementation)
+  const all: Conversation[] = await new Promise((resolve, reject) => {
+    const results: Conversation[] = [];
+    const request = index.openCursor(null, 'prev'); // Newest first
+    
+    request.onsuccess = (e) => {
+      const cursor = e.target.result;
+      if (cursor && results.length < 1000) {
+        results.push(cursor.value);
+        cursor.continue();
+      } else {
+        resolve(results);
+      }
+    };
+    request.onerror = () => reject(request.error);
+  });
+  
+  // Filter in memory
+  return all.filter(conv => {
+    // Text search (title, description, content)
+    if (query) {
+      const lowerQuery = query.toLowerCase();
+      const matches = 
+        conv.title.toLowerCase().includes(lowerQuery) ||
+        conv.description?.toLowerCase().includes(lowerQuery) ||
+        conv.content.toLowerCase().includes(lowerQuery);
+      if (!matches) return false;
+    }
+    
+    // Source filter
+    if (filters?.source && conv.source !== filters.source) return false;
+    
+    // Tag filter
+    if (filters?.tags?.length) {
+      const hasAllTags = filters.tags.every(tag => conv.tags.includes(tag));
+      if (!hasAllTags) return false;
+    }
+    
+    // Collection filter
+    if (filters?.collection_id && conv.collection_id !== filters.collection_id) {
+      return false;
+    }
+    
+    return true;
+  });
+}
+```
+
+**Optimization Notes**:
+- Later: Use IndexedDB cursors with key ranges for better performance
+- Consider full-text search library (e.g., FlexSearch) for large datasets
+
+---
+
+## 4. Data Operations Rules
+
+### 4.1 Transactions
+- **Always use transactions** for read/write operations
+- **Read-only transactions** for queries (better performance)
+- **Read-write transactions** for mutations
+- **Scope**: One object store per transaction (unless needed otherwise)
+
+### 4.2 Error Handling
+```typescript
+try {
+  const result = await this.getConversationByUrl(url);
+} catch (error) {
+  // Log error (dev mode)
+  console.error('IndexedDB error:', error);
+  
+  // User-friendly error
+  throw new Error('Impossible d\'accéder aux données locales. Vérifiez les permissions du navigateur.');
+}
+```
+
+### 4.3 Data Validation
+- **Validate required fields** before saving
+- **Normalize URLs** before storing (lowercase, remove fragments)
+- **Sanitize content** (prevent XSS in popup display)
+- **Type checking** with TypeScript interfaces
+
+---
+
+## 5. Cache and Sync Queue (Cloud Mode)
+
+### 5.1 Cache Strategy
+When `storageMode === 'cloud'`:
+- **Read**: Check IndexedDB cache first, then PostgREST if not found
+- **Write**: Write to IndexedDB immediately (optimistic), queue for sync
+- **Sync**: Background sync from queue to PostgREST
+
+### 5.2 Sync Queue Operations
+```typescript
+// Add to sync queue after local save
+async queueForSync(
+  operation: 'create' | 'update' | 'delete',
+  entity_type: 'conversation' | 'snippet',
+  entity_id: number,
+  entity_data?: any
+): Promise<void> {
+  const db = await this.getDB();
+  const tx = db.transaction('sync_queue', 'readwrite');
+  const store = tx.objectStore('sync_queue');
+  
+  const queueItem: SyncQueueItem = {
+    operation,
+    entity_type,
+    entity_id,
+    entity_data,
+    retry_count: 0,
+    created_at: new Date()
+  };
+  
+  await new Promise((resolve, reject) => {
+    const request = store.add(queueItem);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+}
+```
+
+### 5.3 Sync Processing
+- Run in service worker background
+- Process queue items in order (oldest first)
+- Retry failed items (max 3 retries)
+- Remove successfully synced items
+
+---
+
+## 6. Migration and Versioning
+
+### 6.1 Version Increment
+- Increment database version when:
+  - Adding new object stores
+  - Adding new indexes
+  - Changing index definitions
+  - Changing key paths
+
+### 6.2 Migration Scripts
+```typescript
+db.onupgradeneeded = (event) => {
+  const db = event.target.result;
+  const oldVersion = event.oldVersion;
+  const newVersion = event.newVersion;
+  
+  // Migrate from version 1 to 2
+  if (oldVersion < 2) {
+    // Add new index
+    const store = event.target.transaction.objectStore('conversations');
+    if (!store.indexNames.contains('by-source')) {
+      store.createIndex('by-source', 'source');
+    }
+  }
+  
+  // ... more migrations
+};
+```
+
+---
+
+## 7. Performance Optimization
+
+### 7.1 Index Usage
+- **Always use indexes** for queries (never iterate all records)
+- **Use key ranges** for pagination:
+  ```typescript
+  const range = IDBKeyRange.upperBound(cursorDate);
+  index.openCursor(range, 'prev');
+  ```
+
+### 7.2 Batch Operations
+- **Group multiple writes** in single transaction when possible
+- **Use `getAll()`** for small result sets instead of cursors
+
+### 7.3 Memory Management
+- **Limit result sets** (pagination, max 1000 items)
+- **Close cursors** explicitly (automatic but good practice)
+- **Close database connections** when service worker inactive
+
+---
+
+## 8. Testing and Validation
+
+### 8.1 Unit Tests
+Test all provider methods:
+- Create, read, update, delete operations
+- Search with various filters
+- Edge cases (empty results, duplicate URLs, etc.)
+
+### 8.2 Integration Tests
+- Test with real data volumes (1000+ conversations)
+- Test migration paths
+- Test sync queue processing
+
+### 8.3 Dev Tools
+In dev mode, provide:
+- "Vider cache IndexedDB" button (clear all stores)
+- "Export data" (download JSON backup)
+- "Import data" (restore from JSON)
+
+---
+
+## 9. Security and Privacy
+
+### 9.1 Data Isolation
+- IndexedDB is domain-specific (extension has its own database)
+- No cross-origin access
+- No external network requests (local mode)
+
+### 9.2 Sensitive Data
+- **Never store** API keys or auth tokens in IndexedDB
+- Use `chrome.storage.local` with encryption for sensitive settings
+- **Sanitize content** before storing (remove scripts, iframes)
+
+### 9.3 Data Export/Import
+- Allow users to export their data (JSON format)
+- Allow users to clear all data (privacy)
+- Provide migration path to cloud mode
+
+---
+
+## 10. Code Organization
+
+### 10.1 File Structure
+```
+lib/storage/
+  indexeddb-provider.ts  # Main provider implementation
+  indexeddb-schema.ts    # Schema definitions and types
+  indexeddb-migrations.ts # Version upgrade handlers
+  indexeddb-utils.ts     # Helper functions
+```
+
+### 10.2 Dependencies
+- **Native IndexedDB API** (no external library required)
+- Optional: `dexie.js` for better developer experience (consider later)
+
+---
+
+These rules ensure reliable, performant, and maintainable IndexedDB operations for the extension.

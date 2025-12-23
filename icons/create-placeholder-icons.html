@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Générateur d'icônes AI Saver</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+    }
+    canvas {
+      border: 1px solid #ccc;
+      margin: 10px;
+      display: block;
+    }
+    .icon-preview {
+      display: inline-block;
+      margin: 10px;
+      text-align: center;
+    }
+    button {
+      background: #4285f4;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      margin: 10px 5px;
+    }
+    button:hover {
+      background: #357ae8;
+    }
+  </style>
+</head>
+<body>
+  <h1>Générateur d'icônes placeholder AI Saver</h1>
+  <p>Cliquez sur les boutons pour télécharger les icônes PNG.</p>
+
+  <div id="previews"></div>
+
+  <script>
+    function drawIcon(canvas, size) {
+      const ctx = canvas.getContext('2d');
+      canvas.width = size;
+      canvas.height = size;
+
+      // Background circle with stronger blue for better visibility
+      ctx.fillStyle = '#2563eb';
+      ctx.beginPath();
+      ctx.arc(size / 2, size / 2, size / 2 - 2, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Draw "AI" text - larger and bolder for readability
+      ctx.fillStyle = 'white';
+      ctx.font = `bold ${Math.floor(size * 0.44)}px Arial, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      
+      // Adjust vertical position slightly for better centering
+      const textY = size / 2 + (size <= 16 ? 1 : 0);
+      ctx.fillText('AI', size / 2, textY);
+
+      // Optional: Small green dot indicator (only for larger sizes)
+      if (size >= 48) {
+        ctx.fillStyle = '#10b981';
+        ctx.beginPath();
+        ctx.arc(size * 0.7, size * 0.3, size * 0.06, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    function downloadIcon(size, filename) {
+      const canvas = document.createElement('canvas');
+      drawIcon(canvas, size);
+      
+      canvas.toBlob((blob) => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(url);
+      });
+    }
+
+    // Create previews and download buttons
+    const sizes = [
+      { size: 16, name: 'icon16.png' },
+      { size: 48, name: 'icon48.png' },
+      { size: 128, name: 'icon128.png' }
+    ];
+
+    const previewsDiv = document.getElementById('previews');
+    sizes.forEach(({ size, name }) => {
+      const div = document.createElement('div');
+      div.className = 'icon-preview';
+      
+      const canvas = document.createElement('canvas');
+      drawIcon(canvas, size);
+      div.appendChild(canvas);
+      
+      const button = document.createElement('button');
+      button.textContent = `Télécharger ${name}`;
+      button.onclick = () => downloadIcon(size, name);
+      div.appendChild(button);
+      
+      previewsDiv.appendChild(div);
+    });
+  </script>
+</body>
+</html>

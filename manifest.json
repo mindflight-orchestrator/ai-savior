@@ -1,0 +1,57 @@
+{
+  "manifest_version": 3,
+  "name": "AI Saver",
+  "version": "0.1.0",
+  "description": "Save and organize your AI conversations from ChatGPT, Claude, Perplexity, and Kimi",
+  "permissions": [
+    "storage",
+    "tabs",
+    "scripting",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "https://chat.openai.com/*",
+    "https://chatgpt.com/*",
+    "https://www.chatgpt.com/*",
+    "https://claude.ai/*",
+    "https://www.perplexity.ai/*",
+    "https://kimi.moonshot.cn/*",
+    "https://chat.mistral.ai/*",
+    "https://chat.deepseek.com/*",
+    "https://chat.qwen.ai/*",
+    "https://manus.im/*",
+    "https://grok.com/*"
+  ],
+  "background": {
+    "service_worker": "src/background/service-worker.ts",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "src/popup/popup.html",
+    "default_title": "AI Saver"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://chat.openai.com/*",
+        "https://chatgpt.com/*",
+        "https://www.chatgpt.com/*",
+        "https://claude.ai/*",
+        "https://www.perplexity.ai/*",
+        "https://kimi.moonshot.cn/*",
+        "https://chat.mistral.ai/*",
+        "https://chat.deepseek.com/*",
+        "https://chat.qwen.ai/*",
+        "https://manus.im/*",
+        "https://grok.com/*"
+      ],
+      "js": ["src/content-scripts/extractor.ts"],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

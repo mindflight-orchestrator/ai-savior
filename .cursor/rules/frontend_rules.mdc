@@ -1,0 +1,467 @@
+# Frontend Rules - AI Saver Chrome Extension
+
+## Overview
+
+This document defines all rules and patterns for the frontend components of the Chrome extension, including popup UI, content scripts, service worker communication, and user interactions.
+
+---
+
+## 1. Popup Structure and Layout
+
+### 1.1 Dimensions
+- **Width**: 380-420px (responsive, max 420px)
+- **Height**: Max 600px (scrollable content)
+- **Responsive**: Adapt to smaller screens, maintain readability
+
+### 1.2 Header (Fixed Top Bar)
+```
+┌─────────────────────────────────────┐
+│ [Logo] AI Saver    [🔍] [⚙️] [Local] │
+└─────────────────────────────────────┘
+```
+- **Left**: Logo + "AI Saver" text
+- **Right**:
+  - 🔍 Icon: Focus Search tab
+  - ⚙️ Icon: Open Settings view
+  - Pill badge: "Local" or "Cloud" (storage mode indicator)
+
+### 1.3 Tab Navigation
+Three tabs below header:
+1. **Save** (default on extension icon click)
+2. **Search** (list and search conversations/snippets)
+3. **Snippets** (snippet management)
+
+- Tabs use simple underline indicator for active state
+- Tab switching via JavaScript state (no page reload)
+
+---
+
+## 2. Tab: Save (Primary View)
+
+### 2.1 Beast Mode Status Banner
+**Position**: Top of Save panel (below tabs)
+
+**States**:
+1. **Active & Detected**:
+   ```
+   ✅ URL reconnue (ChatGPT). Beast Mode actif. Version 3.
+   [Toggle: ON] Beast pour cette conversation
+   ```
+2. **Detected but Ignored**:
+   ```
+   ⏸️ Beast désactivé pour cette URL.
+   [Toggle: OFF] Beast pour cette conversation
+   ```
+3. **Not Recognized**:
+   ```
+   ❓ URL non reconnue / domaine non configuré.
+   ```
+
+**Toggle Behavior**:
+- Switch "Beast pour cette conversation"
+- ON → `ignore = false` (Beast continues)
+- OFF → `ignore = true` (Beast stops)
+- Persists to storage immediately
+
+### 2.2 Page Summary Section
+**Layout**:
+- **Title**: Editable input field (pre-filled from extraction)
+- **URL**: Read-only text (canonical_url display)
+- **Source**: Icon badge (ChatGPT/Claude/Perplexity/Kimi) + source name
+
+### 2.3 Manual Save Form
+**Fields**:
+- **Description**: Textarea (2-3 lines visible, expandable)
+- **Tags**: Chip input with autocomplete
+  - Show existing tags as suggestions
+  - Allow creation of new tags
+  - Display selected tags as removable chips
+- **Collection**: Dropdown + "+" button to create new collection
+
+### 2.4 Action Buttons
+**Primary Actions**:
+1. **"Sauvegarder maintenant"**
+   - Forces extraction + save even if Beast is OFF
+   - Shows loading state during extraction
+   - Displays success/error feedback
+
+2. **"Ouvrir mode sélectif"** (conditional)
+   - Only visible if `selective_mode_enabled` in settings
+   - Opens overlay for manual content selection
+
+3. **"Voir conversation complète"**
+   - Opens detailed view (modal or navigate to Search tab)
+   - Shows full content with formatting
+
+---
+
+## 3. Tab: Search
+
+### 3.1 Search Bar
+- **Full-width input** at top
+- **Placeholder**: "Rechercher conversations, snippets..."
+- **Debounce**: 300ms delay before triggering search
+- **Clear button**: X icon appears when input has text
+
+### 3.2 Filters
+**Filter Bar** (below search input):
+- **Type dropdown**: "Tous" / "Conversations" / "Snippets"
+- **Collection dropdown**: "Toutes les collections" + list
+- **Advanced filters button** (cloud mode only):
+  - Opens panel with:
+    - Tag filters (multi-select)
+    - Date range
+    - Source filter
+
+### 3.3 Results List
+**Item Structure** (per result):
+```
+┌─────────────────────────────────────┐
+│ Title of Conversation               │
+│ Preview text (2-3 lines max)...     │
+│ [tag1] [tag2] [tag3]                │
+│ Il y a 2 jours        [↗] [📋] [⭐] │
+└─────────────────────────────────────┘
+```
+
+**Actions per item**:
+- **↗ Arrow**: Open URL in new tab
+- **📋 Copy**: Copy content to clipboard (show toast feedback)
+- **⭐ Star**: Favorite/bookmark (future feature)
+
+**Empty State**:
+- Icon + "Aucun résultat trouvé"
+- "Créer une nouvelle conversation" link
+
+### 3.4 Pagination/Infinite Scroll
+- **Local mode**: Load 20 items at a time, "Load more" button
+- **Cloud mode**: Use PostgREST `limit` and `offset` parameters
+- **Sort**: Always newest first (`updated_at DESC`)
+
+---
+
+## 4. Tab: Snippets
+
+### 4.1 Snippet List
+- Similar layout to Search results
+- Show: title, language badge, preview, tags, date
+- Actions: open source, copy, edit, delete
+
+### 4.2 Create New Snippet
+**Button**: "+ Nouveau snippet" (floating action button or top bar)
+**Form** (modal or inline):
+- Title (required)
+- Content (textarea with syntax highlighting preview)
+- Language selector
+- Source URL (auto-filled if from conversation)
+- Tags (chip input)
+- "Créer" button
+
+---
+
+## 5. Settings View
+
+### 5.1 Navigation
+- Accessible via ⚙️ icon in header
+- Opens in popup (replaces current tab view)
+- "← Retour" button to go back
+
+### 5.2 Sections
+
+#### 5.2.1 Storage Mode
+**Radio buttons**:
+- ○ Mode Local (IndexedDB)
+- ○ Mode Équipe (PostgreSQL + PostgREST)
+
+**When Cloud selected**:
+- **PostgREST URL** input: `http://localhost:3000` (example)
+- **Auth Token** input: (password field)
+- **"Tester la connexion"** button:
+  - Sends `GET /` or `GET /conversations?limit=1`
+  - Shows: ✅ "Connexion réussie" or ❌ "Erreur: [message]"
+
+#### 5.2.2 Beast Mode Configuration
+**Toggle switches** (per platform):
+- [ ] Beast Mode activé sur ChatGPT
+- [ ] Beast Mode activé sur Claude
+- [ ] Beast Mode activé sur Perplexity
+- [ ] Beast Mode activé sur Kimi
+
+**Options**:
+- [ ] Afficher flash notice quand une conversation est détectée
+- [ ] Ne jamais collecter automatiquement sur ce domaine (blacklist)
+
+#### 5.2.3 Selective Mode
+- [ ] Activer mode sélectif façon Kimi
+- Help text: "En mode sélectif, seules les sélections créent des snippets"
+
+#### 5.2.4 XPath Configuration
+**Table**:
+| Domaine | XPath Conversation | XPath Message | Test |
+|---------|-------------------|---------------|------|
+| chat.openai.com | `//div[@data-message]` | `//div[@role]` | [Test] |
+| ... | ... | ... | ... |
+
+**Buttons**:
+- "Tester tous les XPaths sur la page active" (dev mode only)
+- "Ajouter un domaine" (adds new row)
+
+#### 5.2.5 Developer Mode
+- [ ] Activer le mode développeur
+- **When enabled**, shows:
+  - "Tester XPath sur page active"
+  - "Afficher les logs"
+  - "Simuler extraction"
+  - "Vider cache IndexedDB"
+  - [ ] Logging détaillé (toutes les actions)
+  - [ ] Surbrillance des éléments trouvés
+  - Log output area (max-height: 300px, scrollable)
+
+---
+
+## 6. Flash Notice (Toast/Overlay)
+
+### 6.1 Appearance
+- **Position**: Bottom-right of page (fixed)
+- **Size**: Auto-width, max 350px
+- **Style**: Subtle background, border, shadow
+- **Animation**: Slide in from bottom, fade out after 5 seconds
+- **Dismissible**: X button or click outside
+
+### 6.2 Messages
+
+**Active Detection**:
+```
+✅ Conversation détectée (ChatGPT) – Beast Mode actif.
+   Dernière sauvegarde : 14:32
+   [Pause collecte]
+```
+
+**Ignored**:
+```
+⏸️ Conversation ignorée. Beast Mode désactivé pour cette URL.
+   [Reprendre collecte]
+```
+
+**Not Recognized**:
+```
+❓ URL non supportée par Beast Mode (source inconnue).
+```
+
+### 6.3 Behavior
+- Shows only when `tabs.onActivated` or `tabs.onUpdated` detects a conversation
+- Auto-dismiss after 5 seconds (or user action)
+- Action buttons update `ignore` flag and refresh state
+
+---
+
+## 7. Content Script Rules
+
+### 7.1 Injection
+- **When**: Only on configured AI platform domains
+- **How**: Declared in `manifest.json` or injected via `chrome.scripting.executeScript`
+- **Isolation**: Runs in isolated world, cannot access page JavaScript
+
+### 7.2 Extraction Functions
+**Function**: `extractConversation()`
+- Called via message from service worker
+- Returns Promise with:
+  ```typescript
+  {
+    title: string;
+    content: string; // markdown formatted
+    description?: string;
+    shareUrl?: string;
+  }
+  ```
+
+**XPath Evaluation**:
+```typescript
+const result = document.evaluate(
+  xpath,
+  document,
+  null,
+  XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
+  null
+);
+```
+
+### 7.3 Dev Mode Features
+**When `devModeEnabled === true`**:
+- **Highlight Elements**: Green overlay on extracted elements (3s duration)
+- **Debug Indicator**: 🔧 icon fixed top-right (clickable)
+- **Verbose Logging**: Console logs for all extraction steps
+
+---
+
+## 8. Service Worker Communication
+
+### 8.1 Message Types
+
+**From Popup to Service Worker**:
+```typescript
+// Get current tab state
+{ action: 'getTabState', tabId: number }
+
+// Save conversation manually
+{ action: 'saveConversation', payload: ConversationPayload }
+
+// Update ignore flag
+{ action: 'toggleIgnore', canonicalUrl: string, ignore: boolean }
+
+// Search conversations
+{ action: 'searchConversations', query: string, filters: Filters }
+```
+
+**From Service Worker to Popup**:
+```typescript
+// Tab state response
+{
+  known: boolean;
+  ignore: boolean;
+  lastUpdated?: string;
+  version?: number;
+  source?: string;
+}
+```
+
+### 8.2 State Management
+- Service worker maintains current tab state in memory
+- Popup requests state on open via `getTabState`
+- State refreshed on `tabs.onUpdated` / `tabs.onActivated`
+
+---
+
+## 9. Styling Guidelines
+
+### 9.1 Design System
+- **Colors**: Use system colors where possible (light/dark mode support)
+- **Typography**: System font stack, readable sizes (14px base)
+- **Spacing**: 8px grid (8, 16, 24, 32px)
+- **Icons**: Use emoji or icon font (consistent size: 16-20px)
+
+### 9.2 Components
+- **Buttons**: Clear hierarchy (primary, secondary, tertiary)
+- **Inputs**: Consistent padding, border radius
+- **Cards/Items**: Subtle border, padding, hover states
+- **Badges/Pills**: Rounded, small text, colored background
+
+### 9.3 Accessibility
+- **Keyboard navigation**: Tab order, Enter to activate
+- **ARIA labels**: For icons and interactive elements
+- **Focus indicators**: Visible outline on focus
+- **Screen reader**: Semantic HTML, alt texts
+
+---
+
+## 10. Error Handling and Feedback
+
+### 10.1 Error Messages
+- **User-friendly**: "Impossible de sauvegarder la conversation"
+- **Actionable**: "Vérifiez votre connexion Internet" (cloud mode)
+- **Technical details**: Only in dev mode console
+
+### 10.2 Loading States
+- **Buttons**: Disabled + spinner during async operations
+- **Lists**: Skeleton loaders or "Chargement..." text
+- **Search**: Debounce + loading indicator
+
+### 10.3 Success Feedback
+- **Toast notification**: "Conversation sauvegardée" (2s)
+- **Visual update**: Refresh list, update counters
+- **Haptic feedback**: None (not available in extensions)
+
+---
+
+## 11. Performance Rules
+
+### 11.1 Lazy Loading
+- **Search results**: Load on demand, paginate
+- **Popup content**: Load active tab only, defer others
+- **Images**: Lazy load if needed (none in current design)
+
+### 11.2 Caching
+- **Tab state**: Cached in service worker
+- **Search results**: Cache recent searches (5min TTL)
+- **Settings**: Always read from `chrome.storage.local`
+
+### 11.3 Optimization
+- **Debounce search**: 300ms minimum
+- **Throttle scroll events**: 100ms
+- **Limit DOM queries**: Cache XPath results during extraction
+- **Batch IndexedDB operations**: Group multiple writes
+
+---
+
+## 12. Browser Compatibility
+
+- **Target**: Chrome/Chromium (Manifest V3)
+- **Edge**: Compatible (Chromium-based)
+- **Firefox**: Not supported (different extension API)
+- **Safari**: Not supported (different extension API)
+
+---
+
+## 13. Code Organization
+
+### 13.1 File Structure
+```
+src/
+  popup/
+    popup.html
+    popup.ts
+    save-tab.ts
+    search-tab.ts
+    snippets-tab.ts
+    settings-tab.ts
+  content-scripts/
+    extractor.ts
+    selector-injector.ts
+  background/
+    service-worker.ts
+    url-detector.ts
+    state-manager.ts
+  lib/
+    storage/
+      indexeddb-provider.ts
+      postgrest-provider.ts
+      storage-provider.ts (interface)
+    extraction/
+      xpath-utils.ts
+      content-processor.ts
+    ui/
+      flash-notice.ts
+      toast.ts
+  types/
+    conversation.ts
+    snippet.ts
+    settings.ts
+```
+
+### 13.2 TypeScript Rules
+- **Strict mode**: Enabled
+- **Types**: Explicit types, avoid `any`
+- **Interfaces**: For all data models and providers
+- **Enums**: For constants (source types, storage modes)
+
+---
+
+## 14. Testing Requirements
+
+### 14.1 Manual Testing Checklist
+- [ ] Popup opens correctly on all tabs
+- [ ] Save tab shows correct Beast Mode status
+- [ ] Search filters work (local and cloud)
+- [ ] Snippets create/edit/delete
+- [ ] Settings persist correctly
+- [ ] Dev mode tools function
+- [ ] Flash notice appears/disappears correctly
+
+### 14.2 XPath Validation
+- Test XPath on each AI platform after changes
+- Verify extraction accuracy with dev mode
+- Check performance on large conversations (100+ messages)
+
+---
+
+These rules ensure consistency, maintainability, and user experience across all frontend components of the extension.

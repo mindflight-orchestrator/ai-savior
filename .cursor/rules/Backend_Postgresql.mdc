@@ -1,0 +1,527 @@
+---
+alwaysApply: true
+---
+## 2. PostgREST Configuration
+
+### 2.1 PostgREST Setup
+- **Port**: Default 3000 (configurable)
+- **Schema**: `api` (exposed schema)
+- **Anon role**: `web_anon` (read-only by default)
+- **Authenticated role**: `authenticated` (full CRUD)
+
+### 2.2 Authentication
+**Option A: JWT (Recommended)**
+- PostgREST validates JWT tokens
+- Token contains `team_id` claim
+- RLS policies use `team_id` from JWT
+
+**Option B: API Key**
+- Simple API key in `Authorization: Bearer <key>` header
+- Map API key to `team_id` via lookup table
+
+**Example JWT payload**:
+```json
+{
+  "team_id": "550e8400-e29b-41d4-a716-446655440000",
+  "role": "authenticated"
+}
+```
+
+### 2.3 Row Level Security (RLS)
+
+**Enable RLS on all tables**:
+```sql
+ALTER TABLE api.conversations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE api.snippets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE api.collections ENABLE ROW LEVEL SECURITY;
+```
+
+**RLS Policies** (example for conversations):
+```sql
+-- Users can only see their team's conversations
+CREATE POLICY conversations_team_isolation ON api.conversations
+  FOR SELECT
+  USING (team_id = current_setting('request.jwt.claims', true)::json->>'team_id');
+
+-- Users can insert conversations for their team
+CREATE POLICY conversations_team_insert ON api.conversations
+  FOR INSERT
+  WITH CHECK (team_id = current_setting('request.jwt.claims', true)::json->>'team_id');
+
+-- Users can update their team's conversations
+CREATE POLICY conversations_team_update ON api.conversations
+  FOR UPDATE
+  USING (team_id = current_setting('request.jwt.claims', true)::json->>'team_id')
+  WITH CHECK (team_id = current_setting('request.jwt.claims', true)::json->>'team_id');
+
+-- Users can delete their team's conversations
+CREATE POLICY conversations_team_delete ON api.conversations
+  FOR DELETE
+  USING (team_id = current_setting('request.jwt.claims', true)::json->>'team_id');
+```
+
+---
+
+## 3. PostgREST Provider Implementation
+
+### 3.1 Base Configuration
+```typescript
+class PostgRESTProvider implements StorageProvider {
+  private baseUrl: string; // e.g., 'http://localhost:3000'
+  private authToken?: string; // JWT or API key
+  private teamId: string; // Current team ID from JWT or settings
+  
+  private async request(
+    method: string,
+    endpoint: string,
+    body?: any
+  ): Promise<any> {
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+      'Prefer': 'return=representation' // Return inserted/updated rows
+    };
+    
+    if (this.authToken) {
+      headers['Authorization'] = `Bearer ${this.authToken}`;
+    }
+    
+    const response = await fetch(`${this.baseUrl}${endpoint}`, {
+      method,
+      headers,
+      body: body ? JSON.stringify(body) : undefined
+    });
+    
+    if (!response.ok) {
+      throw new Error(`PostgREST error: ${response.status} ${response.statusText}`);
+    }
+    
+    return response.json();
+  }
+}
+```
+
+### 3.2 Conversation Operations
+
+#### 3.2.1 getConversationByUrl
+```typescript
+async getConversationByUrl(canonicalUrl: string): Promise<Conversation | null> {
+  // PostgREST query: GET /conversations?canonical_url=eq.{url}&team_id=eq.{teamId}
+  const encodedUrl = encodeURIComponent(canonicalUrl);
+  const result = await this.request(
+    'GET',
+    `/conversations?canonical_url=eq.${encodedUrl}&team_id=eq.${this.teamId}&limit=1`
+  );
+  
+  return Array.isArray(result) && result.length > 0 ? this.mapFromDB(result[0]) : null;
+}
+```
+
+#### 3.2.2 saveConversation
+**Logic**: Upsert based on `canonical_url` + `team_id`
+
+```typescript
+async saveConversation(conversation: Conversation): Promise<Conversation> {
+  // Check if exists
+  const existing = await this.getConversationByUrl(conversation.canonical_url);
+  
+  const payload = this.mapToDB(conversation);
+  payload.team_id = this.teamId;
+  
+  if (existing && existing.id) {
+    // Update: PATCH /conversations?id=eq.{id}
+    const updated = await this.request(
+      'PATCH',
+      `/conversations?id=eq.${existing.id}`,
+      {
+        ...payload,
+        version: existing.version + 1,
+        updated_at: new Date().toISOString()
+      }
+    );
+    return this.mapFromDB(updated[0]);
+  } else {
+    // Create: POST /conversations
+    const created = await this.request(
+      'POST',
+      '/conversations',
+      {
+        ...payload,
+        version: 1,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }
+    );
+    return this.mapFromDB(created[0]);
+  }
+}
+```
+
+#### 3.2.3 searchConversations
+**PostgREST filtering**:
+```typescript
+async searchConversations(
+  query: string,
+  filters?: SearchFilters
+): Promise<Conversation[]> {
+  const params = new URLSearchParams();
+  params.append('team_id', `eq.${this.teamId}`);
+  params.append('order', 'updated_at.desc');
+  params.append('limit', '100'); // Pagination
+  
+  // Text search (PostgreSQL ilike)
+  if (query) {
+    params.append('or', `(title.ilike.*${query}*,description.ilike.*${query}*)`);
+  }
+  
+  // Source filter
+  if (filters?.source) {
+    params.append('source', `eq.${filters.source}`);
+  }
+  
+  // Tag filter (contains any)
+  if (filters?.tags?.length) {
+    params.append('tags', `cs.{${filters.tags.join(',')}}`);
+  }
+  
+  // Collection filter
+  if (filters?.collection_id) {
+    params.append('collection_id', `eq.${filters.collection_id}`);
+  }
+  
+  const result = await this.request('GET', `/conversations?${params.toString()}`);
+  return Array.isArray(result) ? result.map(item => this.mapFromDB(item)) : [];
+}
+```
+
+**Advanced full-text search** (using PostgreSQL FTS):
+```typescript
+// Use custom function for full-text search
+async searchConversationsFTS(query: string): Promise<Conversation[]> {
+  const result = await this.request(
+    'POST',
+    '/rpc/search_conversations',
+    {
+      search_query: query,
+      team_id: this.teamId
+    }
+  );
+  return Array.isArray(result) ? result.map(item => this.mapFromDB(item)) : [];
+}
+```
+
+**Custom SQL function** (for advanced search):
+```sql
+CREATE FUNCTION api.search_conversations(search_query TEXT, team_id UUID)
+RETURNS SETOF api.conversations AS $$
+  SELECT * FROM api.conversations
+  WHERE api.conversations.team_id = search_conversations.team_id
+    AND (
+      to_tsvector('english', title || ' ' || COALESCE(description, '') || ' ' || content)
+      @@ plainto_tsquery('english', search_query)
+    )
+  ORDER BY updated_at DESC
+  LIMIT 100;
+$$ LANGUAGE sql STABLE;
+```
+
+---
+
+## 4. Data Mapping
+
+### 4.1 Type Conversions
+
+#### 4.1.1 Date Fields
+- **PostgreSQL**: `TIMESTAMPTZ` (ISO 8601 strings in JSON)
+- **TypeScript**: `Date` objects
+- **Conversion**:
+  ```typescript
+  mapFromDB(dbItem: any): Conversation {
+    return {
+      ...dbItem,
+      created_at: new Date(dbItem.created_at),
+      updated_at: new Date(dbItem.updated_at)
+    };
+  }
+  
+  mapToDB(conv: Conversation): any {
+    return {
+      ...conv,
+      created_at: conv.created_at.toISOString(),
+      updated_at: conv.updated_at.toISOString()
+    };
+  }
+  ```
+
+#### 4.1.2 Tags
+- **PostgreSQL**: `TEXT[]` (array)
+- **TypeScript**: `string[]`
+- **No conversion needed** (PostgREST handles arrays)
+
+#### 4.1.3 ID Field
+- **PostgreSQL**: `SERIAL` (integer)
+- **TypeScript**: `number`
+- **No conversion needed**
+
+---
+
+## 5. Error Handling
+
+### 5.1 Common PostgREST Errors
+
+**404 Not Found**:
+- Resource doesn't exist (expected for `getConversationByUrl` when not found)
+
+**409 Conflict**:
+- Unique constraint violation (e.g., duplicate `canonical_url`)
+
+**401 Unauthorized**:
+- Missing or invalid auth token
+- JWT expired
+
+**403 Forbidden**:
+- RLS policy blocks access (wrong `team_id`)
+
+### 5.2 Error Handling Strategy
+```typescript
+private async request(...): Promise<any> {
+  try {
+    const response = await fetch(...);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      
+      if (response.status === 401) {
+        throw new Error('Authentification requise. Vérifiez votre token.');
+      }
+      
+      if (response.status === 403) {
+        throw new Error('Accès refusé. Vérifiez vos permissions.');
+      }
+      
+      if (response.status === 404) {
+        return null; // Not found is valid for some queries
+      }
+      
+      throw new Error(`Erreur serveur: ${response.status} - ${errorText}`);
+    }
+    
+    return response.json();
+  } catch (error) {
+    // Network errors
+    if (error instanceof TypeError) {
+      throw new Error('Impossible de se connecter au serveur. Vérifiez l\'URL PostgREST.');
+    }
+    throw error;
+  }
+}
+```
+
+---
+
+## 6. Pagination
+
+### 6.1 Limit and Offset
+```typescript
+async listConversations(
+  page: number = 1,
+  pageSize: number = 20
+): Promise<{ data: Conversation[]; total: number }> {
+  const limit = pageSize;
+  const offset = (page - 1) * pageSize;
+  
+  // Get data
+  const data = await this.request(
+    'GET',
+    `/conversations?team_id=eq.${this.teamId}&order=updated_at.desc&limit=${limit}&offset=${offset}`
+  );
+  
+  // Get total count
+  const countResponse = await fetch(
+    `${this.baseUrl}/conversations?team_id=eq.${this.teamId}`,
+    {
+      headers: {
+        'Prefer': 'count=exact',
+        'Range': '0-0'
+      }
+    }
+  );
+  const total = parseInt(countResponse.headers.get('Content-Range')?.split('/')[1] || '0', 10);
+  
+  return {
+    data: Array.isArray(data) ? data.map(item => this.mapFromDB(item)) : [],
+    total
+  };
+}
+```
+
+---
+
+## 7. Connection Testing
+
+### 7.1 Test Endpoint
+```typescript
+async testConnection(): Promise<{ success: boolean; message: string }> {
+  try {
+    // Try simple query
+    const response = await fetch(`${this.baseUrl}/`, {
+      headers: this.authToken ? {
+        'Authorization': `Bearer ${this.authToken}`
+      } : {}
+    });
+    
+    if (response.ok || response.status === 404) {
+      // 404 is OK (root endpoint may not exist)
+      return { success: true, message: 'Connexion réussie' };
+    }
+    
+    // Try conversations endpoint
+    const convResponse = await fetch(
+      `${this.baseUrl}/conversations?limit=1`,
+      {
+        headers: this.authToken ? {
+          'Authorization': `Bearer ${this.authToken}`
+        } : {}
+      }
+    );
+    
+    if (convResponse.ok) {
+      return { success: true, message: 'Connexion réussie' };
+    }
+    
+    return { success: false, message: `Erreur ${convResponse.status}` };
+  } catch (error) {
+    return {
+      success: false,
+      message: `Erreur de connexion: ${error.message}`
+    };
+  }
+}
+```
+
+---
+
+## 8. Sync with IndexedDB (Cloud Mode)
+
+### 8.1 Sync Strategy
+When `storageMode === 'cloud'`:
+
+1. **Write Path**:
+   - Save to IndexedDB immediately (optimistic UI)
+   - Queue for sync to PostgREST
+   - Background sync processes queue
+
+2. **Read Path**:
+   - Check IndexedDB cache first
+   - If not found or stale, fetch from PostgREST
+   - Update IndexedDB cache
+
+3. **Conflict Resolution**:
+   - Server version wins (PostgREST is source of truth)
+   - Merge strategy: Use `version` field to detect conflicts
+
+### 8.2 Sync Queue Processing
+```typescript
+async processSyncQueue(): Promise<void> {
+  const queueItems = await this.getSyncQueueItems();
+  
+  for (const item of queueItems) {
+    try {
+      switch (item.operation) {
+        case 'create':
+        case 'update':
+          await this.saveConversation(item.entity_data);
+          break;
+        case 'delete':
+          await this.deleteConversation(item.entity_id);
+          break;
+      }
+      
+      // Remove from queue on success
+      await this.removeSyncQueueItem(item.id);
+    } catch (error) {
+      // Increment retry count
+      item.retry_count++;
+      
+      if (item.retry_count >= 3) {
+        // Mark as failed, log error
+        await this.markSyncQueueItemFailed(item.id);
+      } else {
+        // Retry later
+        await this.updateSyncQueueItem(item);
+      }
+    }
+  }
+}
+```
+
+---
+
+## 9. Performance Optimization
+
+### 9.1 Index Usage
+- All queries must use indexes (verify with `EXPLAIN`)
+- Use `GIN` indexes for array/tag searches
+- Use `B-tree` indexes for sorting (e.g., `updated_at DESC`)
+
+### 9.2 Query Optimization
+- **Limit result sets**: Always use `limit` parameter
+- **Select specific fields**: Use `?select=id,title,description` when full content not needed
+- **Avoid N+1 queries**: Use PostgREST relationships (`?select=*,collection(*)`)
+
+### 9.3 Caching Strategy
+- Cache frequently accessed data in IndexedDB
+- Set TTL for cached data (e.g., 5 minutes)
+- Invalidate cache on updates
+
+---
+
+## 10. Security Best Practices
+
+### 10.1 Authentication
+- **Never store JWT in IndexedDB**: Use `chrome.storage.local` with encryption
+- **Rotate tokens**: Implement token refresh logic
+- **Validate tokens**: Check expiration before requests
+
+### 10.2 Input Validation
+- **Sanitize URLs**: Validate `canonical_url` format
+- **Validate enums**: Check `source` values match allowed set
+- **Size limits**: Enforce max content length (e.g., 10MB per conversation)
+
+### 10.3 RLS Policies
+- **Test RLS**: Verify users can only access their team's data
+- **Audit logs**: Consider logging all mutations for compliance
+
+---
+
+## 11. Migration and Schema Changes
+
+### 11.1 Schema Versioning
+- Track schema version in database (e.g., `api.schema_version` table)
+- Provide migration scripts for version upgrades
+- Test migrations on staging before production
+
+### 11.2 Backward Compatibility
+- Add new columns as nullable initially
+- Provide default values for new required fields
+- Support both old and new API formats during transition
+
+---
+
+## 12. Code Organization
+
+### 12.1 File Structure
+```
+lib/storage/
+  postgrest-provider.ts    # Main provider implementation
+  postgrest-types.ts       # Type definitions
+  postgrest-utils.ts       # Helper functions (mapping, errors)
+  postgrest-sync.ts        # Sync queue processing
+```
+
+### 12.2 Dependencies
+- **Native fetch API** (no external HTTP library needed)
+- Optional: `postgrest-js` client library (consider if complexity increases)
+
+---
+
+These rules ensure secure, performant, and maintainable PostgreSQL + PostgREST integration for team/cloud mode.
