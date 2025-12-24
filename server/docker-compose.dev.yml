@@ -1,0 +1,33 @@
+services:
+  postgres:
+    build:
+      context: .
+      dockerfile: ./docker/Dockerfile.postgres
+      args:
+        - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+        - GITHUB_USERNAME=${GITHUB_USERNAME:-}
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-mfo}
+      - POSTGRES_USER=${POSTGRES_USER:-mfoserver}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-mfoserver}
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+      - GITHUB_USERNAME=${GITHUB_USERNAME:-}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - save-my-chat-llm
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mfoserver} -d ${POSTGRES_DB:-mfo}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+networks:
+  save-my-chat-llm:
+    driver: bridge
+
+volumes:
+  postgres_data:
