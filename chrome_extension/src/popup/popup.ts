@@ -7,16 +7,18 @@ type StorageMode = 'local' | 'cloud';
 
 type PopupSettings = {
   storageMode: StorageMode;
-  postgrest_url?: string;
-  postgrest_auth?: string;
+  backend_url?: string;
+  api_key?: string;
+  disable_local_cache?: boolean;
   beast_enabled_per_domain: Record<string, boolean>;
   devModeEnabled: boolean;
 };
 
 const DEFAULT_POPUP_SETTINGS: PopupSettings = {
   storageMode: 'local',
-  postgrest_url: 'http://localhost:3000',
-  postgrest_auth: '',
+  backend_url: 'http://localhost:8080',
+  api_key: '',
+  disable_local_cache: false,
   beast_enabled_per_domain: {
     'chat.openai.com': true,
     'chatgpt.com': true,
@@ -690,8 +692,9 @@ initSearchUI();
 async function loadSettings(): Promise<PopupSettings> {
   const raw = await chrome.storage.local.get([
     'storageMode',
-    'postgrest_url',
-    'postgrest_auth',
+    'backend_url',
+    'api_key',
+    'disable_local_cache',
     'beast_enabled_per_domain',
     'devModeEnabled',
   ]);
@@ -709,16 +712,25 @@ async function loadSettings(): Promise<PopupSettings> {
 async function saveSettings(settings: PopupSettings): Promise<void> {
   await chrome.storage.local.set({
     storageMode: settings.storageMode,
-    postgrest_url: settings.postgrest_url,
-    postgrest_auth: settings.postgrest_auth,
+    backend_url: settings.backend_url,
+    api_key: settings.api_key,
+    disable_local_cache: settings.disable_local_cache,
     beast_enabled_per_domain: settings.beast_enabled_per_domain,
     devModeEnabled: settings.devModeEnabled,
   });
 }
 
-function setStorageBadge(mode: StorageMode) {
+function setStorageBadge(mode: StorageMode, disableLocalCache?: boolean, backendUrl?: string) {
   const modeBadge = document.getElementById('storage-mode');
-  if (modeBadge) modeBadge.textContent = mode === 'cloud' ? 'Cloud' : 'Local';
+  if (!modeBadge) return;
+  
+  if (mode === 'local' || !backendUrl) {
+    modeBadge.textContent = 'Local';
+  } else if (disableLocalCache) {
+    modeBadge.textContent = 'Cloud';
+  } else {
+    modeBadge.textContent = 'Hybrid';
+  }
 }
 
 function qs<T extends Element>(selector: string): T | null {
@@ -729,28 +741,30 @@ async function initSettingsUI() {
   const settings = await loadSettings();
 
   // Storage badge
-  setStorageBadge(settings.storageMode);
+  setStorageBadge(settings.storageMode, settings.disable_local_cache, settings.backend_url);
 
   // Storage mode radios
   const localRadio = qs<HTMLInputElement>('input[name="storageMode"][value="local"]');
   const cloudRadio = qs<HTMLInputElement>('input[name="storageMode"][value="cloud"]');
   const cloudSettings = document.getElementById('cloud-settings') as HTMLElement | null;
-  const postgrestUrl = document.getElementById('postgrest-url') as HTMLInputElement | null;
-  const postgrestAuth = document.getElementById('postgrest-auth') as HTMLInputElement | null;
+  const backendUrl = document.getElementById('backend-url') as HTMLInputElement | null;
+  const apiKey = document.getElementById('api-key') as HTMLInputElement | null;
+  const disableLocalCache = document.getElementById('disable-local-cache') as HTMLInputElement | null;
   const testBtn = document.getElementById('test-connection') as HTMLButtonElement | null;
   const statusEl = document.getElementById('connection-status') as HTMLElement | null;
 
   if (localRadio) localRadio.checked = settings.storageMode === 'local';
   if (cloudRadio) cloudRadio.checked = settings.storageMode === 'cloud';
   if (cloudSettings) cloudSettings.style.display = settings.storageMode === 'cloud' ? 'block' : 'none';
-  if (postgrestUrl) postgrestUrl.value = settings.postgrest_url ?? '';
-  if (postgrestAuth) postgrestAuth.value = settings.postgrest_auth ?? '';
+  if (backendUrl) backendUrl.value = settings.backend_url ?? '';
+  if (apiKey) apiKey.value = settings.api_key ?? '';
+  if (disableLocalCache) disableLocalCache.checked = settings.disable_local_cache ?? false;
 
   const applyStorageMode = async (mode: StorageMode) => {
     const next = await loadSettings();
     next.storageMode = mode;
     await saveSettings(next);
-    setStorageBadge(mode);
+    setStorageBadge(mode, next.disable_local_cache, next.backend_url);
     if (cloudSettings) cloudSettings.style.display = mode === 'cloud' ? 'block' : 'none';
   };
 
@@ -761,33 +775,58 @@ async function initSettingsUI() {
     if (cloudRadio.checked) await applyStorageMode('cloud');
   });
 
-  postgrestUrl?.addEventListener('change', async () => {
+  backendUrl?.addEventListener('change', async () => {
     const next = await loadSettings();
-    next.postgrest_url = postgrestUrl.value.trim();
+    next.backend_url = backendUrl.value.trim() || undefined;
+    await saveSettings(next);
+    setStorageBadge(next.storageMode, next.disable_local_cache, next.backend_url);
+  });
+  apiKey?.addEventListener('change', async () => {
+    const next = await loadSettings();
+    next.api_key = apiKey.value.trim() || undefined;
     await saveSettings(next);
   });
-  postgrestAuth?.addEventListener('change', async () => {
+  disableLocalCache?.addEventListener('change', async () => {
     const next = await loadSettings();
-    next.postgrest_auth = postgrestAuth.value;
+    next.disable_local_cache = disableLocalCache.checked;
     await saveSettings(next);
+    setStorageBadge(next.storageMode, next.disable_local_cache, next.backend_url);
   });
 
   testBtn?.addEventListener('click', async () => {
-    if (!statusEl) return;
+    if (!statusEl || !backendUrl) return;
     statusEl.textContent = 'Test en cours...';
+    statusEl.style.color = '#444';
+    
+    const url = backendUrl.value.trim();
+    if (!url) {
+      statusEl.textContent = '❌ Veuillez entrer une URL';
+      statusEl.style.color = '#d32f2f';
+      return;
+    }
+    
+    // Validate URL format
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      statusEl.textContent = '❌ URL doit commencer par http:// ou https://';
+      statusEl.style.color = '#d32f2f';
+      return;
+    }
+    
     try {
-      const url = (postgrestUrl?.value || 'http://localhost:3000').replace(/\/+$/, '');
-      const token = postgrestAuth?.value?.trim();
-      const res = await fetch(`${url}/conversations?limit=1`, {
-        headers: token ? { Authorization: token.startsWith('Bearer ') ? token : `Bearer ${token}` } : {},
-      });
-      if (res.ok) {
-        statusEl.textContent = '✅ Connexion réussie';
+      const { GoBackendProvider } = await import('../lib/storage/go-backend-provider');
+      const result = await GoBackendProvider.testConnection(url, apiKey?.value.trim());
+      
+      if (result.success) {
+        statusEl.textContent = `✅ ${result.message}`;
+        statusEl.style.color = '#10b981';
       } else {
-        statusEl.textContent = `❌ Erreur ${res.status}`;
+        statusEl.textContent = `❌ ${result.message}`;
+        statusEl.style.color = '#d32f2f';
       }
     } catch (e) {
-      statusEl.textContent = '❌ Impossible de se connecter (Docker/URL ?)';
+      statusEl.textContent = '❌ Erreur lors du test de connexion';
+      statusEl.style.color = '#d32f2f';
+      console.error('Connection test error:', e);
     }
   });
 

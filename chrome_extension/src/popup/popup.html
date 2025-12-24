@@ -111,20 +111,28 @@
         </label>
         <label style="display:block; margin-bottom: 6px;">
           <input type="radio" name="storageMode" value="cloud">
-          Mode Équipe (PostgreSQL + PostgREST)
+          Mode Équipe (PostgreSQL + Go Backend)
         </label>
 
         <div id="cloud-settings" style="margin-top: 10px; display:none;">
           <label style="display:block; margin-bottom: 6px;">
-            PostgREST URL
-            <input id="postgrest-url" type="text" placeholder="http://localhost:3000" style="width:100%; padding:6px; margin-top:4px;">
+            Backend URL
+            <input id="backend-url" type="text" placeholder="http://localhost:8080" style="width:100%; padding:6px; margin-top:4px;">
           </label>
           <label style="display:block; margin-bottom: 6px;">
-            Auth token
-            <input id="postgrest-auth" type="password" placeholder="Bearer ..." style="width:100%; padding:6px; margin-top:4px;">
+            API Key
+            <input id="api-key" type="password" placeholder="Bearer ..." style="width:100%; padding:6px; margin-top:4px;">
           </label>
           <button id="test-connection" type="button">Tester la connexion</button>
           <div id="connection-status" style="margin-top: 8px; font-size: 12px; color:#444;"></div>
+          <label style="display:block; margin-top: 10px; margin-bottom: 6px;">
+            <input type="checkbox" id="disable-local-cache">
+            Désactiver le cache local (PostgreSQL uniquement)
+          </label>
+          <div style="font-size: 11px; color:#666; margin-top: 4px;">
+            Par défaut, les données sont sauvegardées localement et sur le serveur (mode hybride).
+            Cochez cette option pour utiliser uniquement le serveur.
+          </div>
         </div>
       </section>
 

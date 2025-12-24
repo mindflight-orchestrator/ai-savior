@@ -3,7 +3,9 @@
  * Coordinates communication between popup, content scripts, and storage
  */
 
-import { IndexedDBProvider } from '../lib/storage/indexeddb-provider';
+import type { StorageProvider } from '../lib/storage/storage-provider';
+import { createStorageProvider } from '../lib/storage/storage-provider';
+import type { Settings } from '../types/settings';
 import type { Conversation } from '../types/conversation';
 import { detectSourceFromUrl, normalizeUrl, getDomainFromUrl } from './url-detector';
 
@@ -12,7 +14,59 @@ chrome.runtime.onInstalled.addListener(() => {
   console.log('AI Saver extension installed');
 });
 
-const provider = new IndexedDBProvider();
+// Provider cache - invalidated when settings change
+let providerCache: StorageProvider | null = null;
+let providerSettingsHash: string | null = null;
+
+/**
+ * Get storage provider based on current settings
+ * Caches provider instance until settings change
+ */
+async function getProvider(): Promise<StorageProvider> {
+  // Load settings from chrome.storage.local
+  const settingsData = await chrome.storage.local.get([
+    'storageMode',
+    'backend_url',
+    'api_key',
+    'disable_local_cache',
+    'beast_enabled_per_domain',
+    'selective_mode_enabled',
+    'devModeEnabled',
+    'xpaths_by_domain',
+  ]);
+
+  // Create settings hash to detect changes
+  const settingsHash = JSON.stringify({
+    storageMode: settingsData.storageMode,
+    backend_url: settingsData.backend_url,
+    api_key: settingsData.api_key ? '***' : undefined, // Don't include actual key in hash
+    disable_local_cache: settingsData.disable_local_cache,
+  });
+
+  // Return cached provider if settings haven't changed
+  if (providerCache !== null && providerSettingsHash === settingsHash) {
+    return providerCache;
+  }
+
+  // Convert chrome.storage format to Settings interface
+  const settings: Settings = {
+    id: 1,
+    storageMode: settingsData.storageMode || 'local',
+    backend_url: settingsData.backend_url,
+    api_key: settingsData.api_key,
+    disable_local_cache: settingsData.disable_local_cache ?? false,
+    beast_enabled_per_domain: settingsData.beast_enabled_per_domain || {},
+    selective_mode_enabled: settingsData.selective_mode_enabled ?? false,
+    devModeEnabled: settingsData.devModeEnabled ?? false,
+    xpaths_by_domain: settingsData.xpaths_by_domain || {},
+  };
+
+  // Create new provider
+  providerCache = createStorageProvider(settings);
+  providerSettingsHash = settingsHash;
+
+  return providerCache;
+}
 
 // Tab state cache
 const tabStateCache = new Map<number, any>();
@@ -36,6 +90,7 @@ async function isBeastEnabledForDomain(domain: string): Promise<boolean> {
     
     // Fallback to IndexedDB if not in chrome.storage.local (backward compatibility)
     if (!result.beast_enabled_per_domain) {
+      const provider = await getProvider();
       const settings = await provider.getSettings();
       return settings.beast_enabled_per_domain[domain] === true;
     }
@@ -125,6 +180,7 @@ async function processBeastMode(tabId: number, url: string): Promise<void> {
       const canonical_url = normalizeUrl(url);
 
       // Check if conversation exists and if it should be ignored
+      const provider = await getProvider();
       const existing = await provider.getConversationByUrl(canonical_url);
       if (existing?.ignore === true) {
         return; // Conversation is ignored, skip auto-save
@@ -231,6 +287,21 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
     }
   } catch (error) {
     console.error('Error processing activated tab:', error);
+  }
+});
+
+// Listen for settings changes to invalidate provider cache
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName === 'local') {
+    // Check if any storage-related settings changed
+    const storageKeys = ['storageMode', 'backend_url', 'api_key', 'disable_local_cache'];
+    const hasStorageChange = storageKeys.some(key => key in changes);
+    
+    if (hasStorageChange) {
+      console.log('[Service Worker] Storage settings changed, invalidating provider cache');
+      providerCache = null;
+      providerSettingsHash = null;
+    }
   }
 });
 
@@ -364,6 +435,7 @@ async function handleGetTabState(tabId: number | undefined, sendResponse: (respo
       return;
     }
 
+    const provider = await getProvider();
     const existing = await provider.getConversationByUrl(canonical_url);
     sendResponse({
       supported: true,
@@ -452,6 +524,7 @@ async function handleSaveConversation(payload: any, sendResponse: (response: any
       updated_at: new Date(),
     };
 
+    const provider = await getProvider();
     const saved = await provider.saveConversation(conv);
     sendResponse({ success: true, conversation: saved });
   } catch (error) {
@@ -464,6 +537,7 @@ async function handleSaveConversation(payload: any, sendResponse: (response: any
 async function handleSearchConversations(query: string, filters: any, sendResponse: (response: any) => void) {
   try {
     const q = typeof query === 'string' ? query : '';
+    const provider = await getProvider();
     const results = await provider.searchConversations(q, filters);
     // Return lightweight data for the popup
     const mapped = results.slice(0, 100).map((c) => ({
@@ -524,6 +598,7 @@ async function handleGetConversation(id: number | undefined, sendResponse: (resp
   try {
     // Use provider's getConversationByUrl won't work here, need direct ID lookup
     // For now, search all conversations and find by ID (not optimal but works)
+    const provider = await getProvider();
     const all = await provider.searchConversations('', {});
     const conversation = all.find((c) => c.id === id);
 
@@ -552,6 +627,7 @@ async function handleUpdateConversation(
 
   try {
     // Get existing conversation by searching
+    const provider = await getProvider();
     const all = await provider.searchConversations('', {});
     const existing = all.find((c) => c.id === id);
 
@@ -586,6 +662,7 @@ async function handleDeleteConversation(id: number | undefined, sendResponse: (r
   }
 
   try {
+    const provider = await getProvider();
     await provider.deleteConversation(id);
     sendResponse({ success: true });
   } catch (error) {
@@ -597,6 +674,7 @@ async function handleDeleteConversation(id: number | undefined, sendResponse: (r
 // Handle listSnippets request
 async function handleListSnippets(filters: any, sendResponse: (response: any) => void) {
   try {
+    const provider = await getProvider();
     const results = await provider.listSnippets(filters);
     const mapped = results.slice(0, 100).map((s) => ({
       id: s.id,
@@ -619,6 +697,7 @@ async function handleListSnippets(filters: any, sendResponse: (response: any) =>
 // Handle saveSnippet request
 async function handleSaveSnippet(snippet: any, sendResponse: (response: any) => void) {
   try {
+    const provider = await getProvider();
     const saved = await provider.saveSnippet({
       ...snippet,
       created_at: snippet.created_at ? new Date(snippet.created_at) : new Date(),
@@ -638,6 +717,7 @@ async function handleDeleteSnippet(id: number | undefined, sendResponse: (respon
   }
 
   try {
+    const provider = await getProvider();
     await provider.deleteSnippet(id);
     sendResponse({ success: true });
   } catch (error) {
@@ -649,6 +729,7 @@ async function handleDeleteSnippet(id: number | undefined, sendResponse: (respon
 // Handle listCollections request
 async function handleListCollections(sendResponse: (response: any) => void) {
   try {
+    const provider = await getProvider();
     const collections = await provider.listCollections();
     sendResponse({ collections });
   } catch (error) {
