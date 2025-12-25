@@ -53,7 +53,15 @@ export class HybridProvider implements StorageProvider {
       return null;
     } catch (error) {
       // Network error or other remote error
-      console.error('[Hybrid] Error fetching from remote:', error);
+      // Only log as warning (not error) since this is expected when backend is unavailable
+      // Check if it's a network error (TypeError: Failed to fetch) vs other errors
+      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+        // Network error - backend likely unavailable, this is normal
+        console.debug('[Hybrid] Backend unavailable (network error), using local cache only');
+      } else {
+        // Other errors (auth, server error, etc.) - log as warning
+        console.warn('[Hybrid] Error fetching from remote:', error);
+      }
       // Return null (not found) rather than throwing
       // This allows the app to continue working offline
       return null;
@@ -118,7 +126,12 @@ export class HybridProvider implements StorageProvider {
       }
       return remoteResults;
     } catch (error) {
-      console.error('[Hybrid] Error searching remote:', error);
+      // Network error or other remote error
+      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+        console.debug('[Hybrid] Backend unavailable (network error), using local cache only');
+      } else {
+        console.warn('[Hybrid] Error searching remote:', error);
+      }
       // Return empty array rather than throwing
       return [];
     }
@@ -131,7 +144,11 @@ export class HybridProvider implements StorageProvider {
     });
 
     const remotePromise = this.remoteProvider.deleteConversation(id).catch((error) => {
-      console.error('[Hybrid] Error deleting from remote:', error);
+      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+        console.debug('[Hybrid] Backend unavailable (network error), deletion skipped on remote');
+      } else {
+        console.warn('[Hybrid] Error deleting from remote:', error);
+      }
       throw error; // Re-throw remote errors
     });
 
@@ -164,7 +181,11 @@ export class HybridProvider implements StorageProvider {
       }
       return remoteResults;
     } catch (error) {
-      console.error('[Hybrid] Error listing snippets from remote:', error);
+      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+        console.debug('[Hybrid] Backend unavailable (network error), using local cache only');
+      } else {
+        console.warn('[Hybrid] Error listing snippets from remote:', error);
+      }
       return [];
     }
   }
@@ -201,7 +222,11 @@ export class HybridProvider implements StorageProvider {
     });
 
     const remotePromise = this.remoteProvider.deleteSnippet(id).catch((error) => {
-      console.error('[Hybrid] Error deleting snippet from remote:', error);
+      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+        console.debug('[Hybrid] Backend unavailable (network error), snippet deletion skipped on remote');
+      } else {
+        console.warn('[Hybrid] Error deleting snippet from remote:', error);
+      }
       throw error;
     });
 
@@ -234,7 +259,11 @@ export class HybridProvider implements StorageProvider {
       }
       return remoteResults;
     } catch (error) {
-      console.error('[Hybrid] Error listing collections from remote:', error);
+      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+        console.debug('[Hybrid] Backend unavailable (network error), using local cache only');
+      } else {
+        console.warn('[Hybrid] Error listing collections from remote:', error);
+      }
       return [];
     }
   }
@@ -271,7 +300,11 @@ export class HybridProvider implements StorageProvider {
     });
 
     const remotePromise = this.remoteProvider.deleteCollection(id).catch((error) => {
-      console.error('[Hybrid] Error deleting collection from remote:', error);
+      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+        console.debug('[Hybrid] Backend unavailable (network error), collection deletion skipped on remote');
+      } else {
+        console.warn('[Hybrid] Error deleting collection from remote:', error);
+      }
       throw error;
     });
 
@@ -291,8 +324,14 @@ export class HybridProvider implements StorageProvider {
       try {
         return await this.remoteProvider.getSettings();
       } catch (error) {
-        console.error('[Hybrid] Error getting settings from remote:', error);
-        throw error;
+        if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+          console.debug('[Hybrid] Backend unavailable (network error), using local settings');
+          // Return local settings as fallback
+          return await this.localProvider.getSettings();
+        } else {
+          console.warn('[Hybrid] Error getting settings from remote:', error);
+          throw error;
+        }
       }
     }
   }

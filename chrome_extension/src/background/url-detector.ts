@@ -7,7 +7,7 @@ export function detectSourceFromUrl(urlString: string): SourceType {
     if (host === 'chat.openai.com' || host === 'chatgpt.com' || host === 'www.chatgpt.com') return 'chatgpt';
     if (host === 'claude.ai') return 'claude';
     if (host === 'www.perplexity.ai') return 'perplexity';
-    if (host === 'kimi.moonshot.cn') return 'kimi';
+    if (host === 'kimi.moonshot.cn' || host === 'www.kimi.com' || host === 'kimi.com') return 'kimi';
     if (host === 'chat.mistral.ai') return 'mistral';
     if (host === 'chat.deepseek.com') return 'deepseek';
     if (host === 'chat.qwen.ai') return 'qwen';

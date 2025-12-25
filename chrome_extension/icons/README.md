@@ -37,6 +37,29 @@ Pour tester rapidement, vous pouvez créer des icônes placeholder simples avec 
 
 ## Icône actuelle
 
-L'icône `icon.svg` représente un réseau neuronal stylisé sur fond bleu (#4285f4), symbolisant l'intelligence artificielle et la collecte de conversations.
+L'icône `icon.svg` représente un **trou noir stylisé** qui absorbe les contenus, symbolisant la collecte automatique et le stockage des conversations IA.
+
+### Design
+
+- **Trou noir central** : Cercle noir avec gradient radial (noir profond au centre, dégradé vers bleu foncé)
+- **Disque d'accrétion** : Halo violet/bleu (#6366f1, #8b5cf6) autour du trou noir, représentant la matière qui spiralent
+- **Particules absorbées** : Petits points bleus et violets (#60a5fa, #a78bfa) positionnés en spirale convergente, symbolisant les conversations qui sont "absorbées" et sauvegardées
+- **Style** : Minimaliste et moderne, optimisé pour être lisible même en 16x16 pixels
+
+### Métaphore
+
+Le trou noir symbolise :
+- **Absorption** : Collecte automatique des conversations (Beast Mode)
+- **Conservation** : Stockage de tout le contenu dans un seul endroit
+- **Centralisation** : Toutes les conversations IA rassemblées et organisées
+
+### Génération automatique
+
+Utiliser le script Node.js pour générer les PNG depuis le SVG :
+
+```bash
+npm install --save-dev sharp  # Si pas déjà installé
+node scripts/generate-icons.js
+```
 
 Vous pouvez modifier le SVG selon vos préférences de design.

@@ -26,9 +26,9 @@
     "@playwright/test": "^1.40.0",
     "@types/chrome": "^0.0.268",
     "@types/node": "^20.10.6",
+    "sharp": "^0.34.5",
     "typescript": "^5.3.3",
     "vite": "^5.0.11",
     "vite-plugin-web-extension": "^4.1.1"
-  },
-  "dependencies": {}
+  }
 }

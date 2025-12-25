@@ -1,23 +1,29 @@
 <svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
-  <!-- Background circle with stronger color for better visibility -->
-  <circle cx="64" cy="64" r="60" fill="#2563eb"/>
+  <!-- Halo externe (disque d'accrétion stylisé) -->
+  <circle cx="64" cy="64" r="55" fill="#6366f1" opacity="0.2"/>
   
-  <!-- Simplified AI icon: Large "AI" text for better readability -->
-  <text 
-    x="64" 
-    y="80" 
-    font-family="Arial, sans-serif" 
-    font-size="56" 
-    font-weight="bold" 
-    fill="white" 
-    text-anchor="middle" 
-    dominant-baseline="middle"
-  >AI</text>
+  <!-- Disque d'accrétion (anneau) -->
+  <circle cx="64" cy="64" r="45" fill="none" stroke="#8b5cf6" stroke-width="2" opacity="0.4"/>
   
-  <!-- Optional: Small sparkle/star icon to indicate "save" action -->
-  <circle cx="90" cy="38" r="8" fill="#10b981" opacity="0.9"/>
-  <path d="M 90 30 L 90 34 M 90 42 L 90 46 M 34 38 L 38 38 M 46 38 L 50 38" 
-        stroke="white" 
-        stroke-width="2" 
-        stroke-linecap="round"/>
+  <!-- Trou noir principal avec gradient radial -->
+  <defs>
+    <radialGradient id="blackHoleGradient" cx="50%" cy="50%">
+      <stop offset="0%" stop-color="#000000"/>
+      <stop offset="70%" stop-color="#1a1a2e"/>
+      <stop offset="100%" stop-color="#16213e"/>
+    </radialGradient>
+  </defs>
+  <circle cx="64" cy="64" r="30" fill="url(#blackHoleGradient)"/>
+  <circle cx="64" cy="64" r="25" fill="#1a1a2e"/>
+  
+  <!-- Particules absorbées (statiques, positionnées en spirale convergente) -->
+  <circle cx="45" cy="45" r="2.5" fill="#60a5fa" opacity="0.9"/>
+  <circle cx="75" cy="40" r="2" fill="#a78bfa" opacity="0.9"/>
+  <circle cx="50" cy="75" r="2" fill="#60a5fa" opacity="0.9"/>
+  <circle cx="80" cy="80" r="2.5" fill="#a78bfa" opacity="0.9"/>
+  
+  <!-- Particules supplémentaires pour plus de dynamisme -->
+  <circle cx="35" cy="60" r="1.5" fill="#60a5fa" opacity="0.7"/>
+  <circle cx="90" cy="55" r="1.5" fill="#a78bfa" opacity="0.7"/>
+  <circle cx="55" cy="90" r="1.5" fill="#60a5fa" opacity="0.7"/>
 </svg>

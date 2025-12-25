@@ -9,6 +9,22 @@ import { openDatabase } from './indexeddb-schema';
 import { initializeDefaultSettings } from './indexeddb-utils';
 
 /**
+ * Normalize text for search: remove extra whitespace, normalize line breaks, trim
+ * This ensures that text selections with different formatting (multiple spaces, line breaks)
+ * can still match the stored content.
+ */
+function normalizeTextForSearch(text: string): string {
+  if (!text) return '';
+  return text
+    .toLowerCase()
+    .replace(/\r\n/g, ' ')      // Replace Windows line breaks with space
+    .replace(/\n/g, ' ')         // Replace Unix line breaks with space
+    .replace(/\r/g, ' ')         // Replace old Mac line breaks with space
+    .replace(/\s+/g, ' ')        // Replace multiple spaces with single space
+    .trim();                     // Remove leading/trailing spaces
+}
+
+/**
  * IndexedDB Storage Provider
  * Implements StorageProvider interface for local storage mode
  */
@@ -134,13 +150,20 @@ export class IndexedDBProvider implements StorageProvider {
 
     // Filter in memory
     return all.filter((conv) => {
-      // Text search (title, description, content)
+      // Text search (title, description, content, tags)
       if (query) {
-        const lowerQuery = query.toLowerCase();
+        const normalizedQuery = normalizeTextForSearch(query);
+        const normalizedTitle = normalizeTextForSearch(conv.title);
+        const normalizedDescription = normalizeTextForSearch(conv.description || '');
+        const normalizedContent = normalizeTextForSearch(conv.content);
+        const normalizedTags = normalizeTextForSearch(conv.tags.join(' '));
+        
         const matches =
-          conv.title.toLowerCase().includes(lowerQuery) ||
-          conv.description?.toLowerCase().includes(lowerQuery) ||
-          conv.content.toLowerCase().includes(lowerQuery);
+          normalizedTitle.includes(normalizedQuery) ||
+          normalizedDescription.includes(normalizedQuery) ||
+          normalizedContent.includes(normalizedQuery) ||
+          normalizedTags.includes(normalizedQuery);
+          
         if (!matches) return false;
       }
 

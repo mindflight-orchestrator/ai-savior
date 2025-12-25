@@ -26,6 +26,8 @@ const DEFAULT_POPUP_SETTINGS: PopupSettings = {
     'claude.ai': true,
     'www.perplexity.ai': true,
     'kimi.moonshot.cn': false,
+    'www.kimi.com': false,
+    'kimi.com': false,
     'chat.mistral.ai': true,
     'chat.deepseek.com': true,
     'chat.qwen.ai': true,
@@ -257,6 +259,75 @@ function renderSearchResults(items: SearchResultItem[]) {
       await chrome.tabs.create({ url: item.canonical_url });
     });
     actions.appendChild(openBtn);
+
+    // Bouton Copier (copie titre + description + tags + contenu)
+    const copyBtn = document.createElement('button');
+    copyBtn.type = 'button';
+    copyBtn.innerHTML = '📋';
+    copyBtn.title = 'Copier le contenu complet';
+    Object.assign(copyBtn.style, btnStyle);
+    copyBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      try {
+        // Load full conversation to get complete content
+        chrome.runtime.sendMessage({ action: 'getConversation', id: item.id }, async (response: any) => {
+          if (chrome.runtime.lastError || response?.error) {
+            console.error('Error loading conversation:', response?.error || chrome.runtime.lastError);
+            copyBtn.title = 'Erreur';
+            setTimeout(() => {
+              copyBtn.title = 'Copier le contenu complet';
+            }, 2000);
+            return;
+          }
+          
+          const conv = response.conversation;
+          if (!conv) {
+            copyBtn.title = 'Conversation non trouvée';
+            setTimeout(() => {
+              copyBtn.title = 'Copier le contenu complet';
+            }, 2000);
+            return;
+          }
+          
+          // Format: Title, Description, Tags, Content
+          const parts: string[] = [];
+          if (conv.title) parts.push(`# ${conv.title}`);
+          if (conv.description) parts.push(`\n${conv.description}`);
+          if (conv.tags && conv.tags.length > 0) {
+            parts.push(`\n\nTags: ${conv.tags.join(', ')}`);
+          }
+          if (conv.content) {
+            parts.push(`\n\n${conv.content}`);
+          }
+          
+          const textToCopy = parts.join('\n');
+          await navigator.clipboard.writeText(textToCopy);
+          copyBtn.title = 'Copié !';
+          setTimeout(() => {
+            copyBtn.title = 'Copier le contenu complet';
+          }, 2000);
+        });
+      } catch (err) {
+        console.error('Failed to copy:', err);
+        copyBtn.title = 'Erreur de copie';
+        setTimeout(() => {
+          copyBtn.title = 'Copier le contenu complet';
+        }, 2000);
+      }
+    });
+    actions.appendChild(copyBtn);
+
+    // Bouton NotebookLM
+    const notebookBtn = document.createElement('button');
+    notebookBtn.type = 'button';
+    notebookBtn.innerHTML = '📓';
+    notebookBtn.title = 'Ouvrir dans NotebookLM';
+    Object.assign(notebookBtn.style, btnStyle);
+    notebookBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      await chrome.tabs.create({ url: 'https://notebooklm.google.com' });
+    });
+    actions.appendChild(notebookBtn);
 
     // Bouton Prévisualiser (œil)
     const previewBtn = document.createElement('button');
@@ -760,6 +831,15 @@ async function initSettingsUI() {
   if (apiKey) apiKey.value = settings.api_key ?? '';
   if (disableLocalCache) disableLocalCache.checked = settings.disable_local_cache ?? false;
 
+  // Show import remote button only in cloud mode
+  const importRemoteContainer = document.getElementById('import-remote-container') as HTMLElement | null;
+  const updateImportRemoteVisibility = () => {
+    if (importRemoteContainer) {
+      const shouldShow = settings.storageMode === 'cloud' && settings.backend_url;
+      importRemoteContainer.style.display = shouldShow ? 'block' : 'none';
+    }
+  };
+
   const applyStorageMode = async (mode: StorageMode) => {
     const next = await loadSettings();
     next.storageMode = mode;
@@ -859,7 +939,7 @@ async function initSettingsUI() {
   if (beastChatGPT) beastChatGPT.checked = !!(settings.beast_enabled_per_domain['chat.openai.com'] || settings.beast_enabled_per_domain['chatgpt.com']);
   if (beastClaude) beastClaude.checked = !!settings.beast_enabled_per_domain['claude.ai'];
   if (beastPerplexity) beastPerplexity.checked = !!settings.beast_enabled_per_domain['www.perplexity.ai'];
-  if (beastKimi) beastKimi.checked = !!settings.beast_enabled_per_domain['kimi.moonshot.cn'];
+  if (beastKimi) beastKimi.checked = !!(settings.beast_enabled_per_domain['kimi.moonshot.cn'] || settings.beast_enabled_per_domain['www.kimi.com'] || settings.beast_enabled_per_domain['kimi.com']);
   if (beastMistral) beastMistral.checked = !!settings.beast_enabled_per_domain['chat.mistral.ai'];
   if (beastDeepSeek) beastDeepSeek.checked = !!settings.beast_enabled_per_domain['chat.deepseek.com'];
   if (beastQwen) beastQwen.checked = !!settings.beast_enabled_per_domain['chat.qwen.ai'];
@@ -873,7 +953,11 @@ async function initSettingsUI() {
   });
   beastClaude?.addEventListener('change', () => setBeast('claude.ai', beastClaude.checked));
   beastPerplexity?.addEventListener('change', () => setBeast('www.perplexity.ai', beastPerplexity.checked));
-  beastKimi?.addEventListener('change', () => setBeast('kimi.moonshot.cn', beastKimi.checked));
+  beastKimi?.addEventListener('change', () => {
+    setBeast('kimi.moonshot.cn', beastKimi.checked);
+    setBeast('www.kimi.com', beastKimi.checked);
+    setBeast('kimi.com', beastKimi.checked);
+  });
   beastMistral?.addEventListener('change', () => setBeast('chat.mistral.ai', beastMistral.checked));
   beastDeepSeek?.addEventListener('change', () => setBeast('chat.deepseek.com', beastDeepSeek.checked));
   beastQwen?.addEventListener('change', () => setBeast('chat.qwen.ai', beastQwen.checked));
@@ -894,16 +978,7 @@ async function initSettingsUI() {
   const importBackupBtn = document.getElementById('import-backup') as HTMLButtonElement | null;
   const backupFileInput = document.getElementById('backup-file-input') as HTMLInputElement | null;
   const backupStatus = document.getElementById('backup-status') as HTMLElement | null;
-  const importRemoteContainer = document.getElementById('import-remote-container') as HTMLElement | null;
   const importBackupRemoteBtn = document.getElementById('import-backup-remote') as HTMLButtonElement | null;
-
-  // Show import remote button only in cloud mode
-  const updateImportRemoteVisibility = () => {
-    if (importRemoteContainer) {
-      const shouldShow = settings.storageMode === 'cloud' && settings.backend_url;
-      importRemoteContainer.style.display = shouldShow ? 'block' : 'none';
-    }
-  };
 
   exportBackupBtn?.addEventListener('click', async () => {
     if (!backupStatus) return;

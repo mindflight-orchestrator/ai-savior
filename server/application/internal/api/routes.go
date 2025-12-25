@@ -30,9 +30,22 @@ type MiddlewareConfig struct {
 func SetupRoutes(app *fiber.App, h *Handlers, mwConfig MiddlewareConfig) {
 	// Global middleware
 	app.Use(cors.New(cors.Config{
-		AllowOrigins: strings.Join(mwConfig.CORSOrigins, ","),
+		AllowOriginsFunc: func(origin string) bool {
+			// Always allow Chrome extension origins
+			if strings.HasPrefix(origin, "chrome-extension://") {
+				return true
+			}
+			// Check against configured origins
+			for _, allowedOrigin := range mwConfig.CORSOrigins {
+				if origin == allowedOrigin {
+					return true
+				}
+			}
+			return false
+		},
 		AllowMethods: "GET,POST,PUT,DELETE,OPTIONS",
 		AllowHeaders: "Origin,Content-Type,Accept,Authorization",
+		AllowCredentials: true, // Needed for API key authentication
 	}))
 
 	app.Use(limiter.New(limiter.Config{
