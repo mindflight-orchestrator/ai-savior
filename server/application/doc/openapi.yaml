@@ -1,0 +1,1137 @@
+openapi: 3.0.3
+info:
+  title: Save My Chat LLM API
+  description: |
+    REST API for managing conversations, snippets, collections, and settings.
+    This API is used by the Chrome extension to sync data with the backend server.
+    
+    **Authentication**: All protected endpoints require either:
+    - JWT token in Authorization header: `Authorization: Bearer <jwt_token>`
+    - API key in Authorization header: `Authorization: Bearer <api_key>`
+  version: 1.0.0
+  contact:
+    name: API Support
+servers:
+  - url: http://localhost:8080/api
+    description: Local development server
+  - url: https://api.example.com/api
+    description: Production server
+
+tags:
+  - name: Health
+    description: Health check endpoints
+  - name: Conversations
+    description: Manage conversations from AI platforms
+  - name: Snippets
+    description: Manage code snippets
+  - name: Collections
+    description: Manage collections for organizing conversations
+  - name: Settings
+    description: Manage extension settings
+  - name: Backup
+    description: Backup and restore operations
+
+paths:
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health check
+      description: Check if the API and database are healthy
+      operationId: checkHealth
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: healthy
+        '503':
+          description: Service is unhealthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+                example:
+                  status: unhealthy
+                  error: Database connection failed
+
+  /conversations:
+    post:
+      tags:
+        - Conversations
+      summary: Create a conversation
+      description: Create a new conversation or update an existing one (upsert based on canonical_url)
+      operationId: createConversation
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateConversationRequest'
+            example:
+              canonical_url: https://chat.openai.com/c/abc123
+              share_url: https://chat.openai.com/share/xyz789
+              source: chatgpt
+              title: How to use React hooks
+              description: A conversation about React hooks
+              content: "User: How do I use useState?\nAssistant: useState is..."
+              tags: ["react", "hooks", "javascript"]
+              collection_id: 1
+              ignore: false
+      responses:
+        '201':
+          description: Conversation created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Conversation'
+        '400':
+          description: Invalid request body or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /conversations/search:
+    get:
+      tags:
+        - Conversations
+      summary: Search conversations
+      description: Search conversations with filters (query, source, tags, collection_id)
+      operationId: searchConversations
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: q
+          in: query
+          description: Search query (full-text search)
+          required: false
+          schema:
+            type: string
+          example: react hooks
+        - name: source
+          in: query
+          description: Filter by source platform
+          required: false
+          schema:
+            type: string
+          example: chatgpt
+        - name: tags
+          in: query
+          description: Filter by tags (comma-separated)
+          required: false
+          schema:
+            type: string
+          example: react,javascript
+        - name: collection_id
+          in: query
+          description: Filter by collection ID
+          required: false
+          schema:
+            type: integer
+          example: 1
+      responses:
+        '200':
+          description: List of conversations matching the search criteria
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Conversation'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /conversations/{id}:
+    get:
+      tags:
+        - Conversations
+      summary: Get conversation by ID
+      description: Retrieve a conversation by its ID
+      operationId: getConversationById
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Conversation ID
+          schema:
+            type: integer
+          example: 1
+      responses:
+        '200':
+          description: Conversation found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Conversation'
+        '400':
+          description: Invalid conversation ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Conversation not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      tags:
+        - Conversations
+      summary: Delete a conversation
+      description: Delete a conversation by ID
+      operationId: deleteConversation
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Conversation ID
+          schema:
+            type: integer
+          example: 1
+      responses:
+        '204':
+          description: Conversation deleted successfully
+        '400':
+          description: Invalid conversation ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /conversations/url/{url}:
+    get:
+      tags:
+        - Conversations
+      summary: Get conversation by URL
+      description: Retrieve a conversation by its canonical URL
+      operationId: getConversationByURL
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: url
+          in: path
+          required: true
+          description: Canonical URL of the conversation (URL encoded)
+          schema:
+            type: string
+          example: https%3A%2F%2Fchat.openai.com%2Fc%2Fabc123
+      responses:
+        '200':
+          description: Conversation found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Conversation'
+        '400':
+          description: URL parameter is required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Conversation not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /snippets:
+    get:
+      tags:
+        - Snippets
+      summary: List snippets
+      description: List all snippets with optional filters
+      operationId: listSnippets
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: language
+          in: query
+          description: Filter by programming language
+          required: false
+          schema:
+            type: string
+          example: javascript
+        - name: tags
+          in: query
+          description: Filter by tags (comma-separated)
+          required: false
+          schema:
+            type: string
+          example: react,hooks
+        - name: source_conversation_id
+          in: query
+          description: Filter by source conversation ID
+          required: false
+          schema:
+            type: integer
+          example: 1
+      responses:
+        '200':
+          description: List of snippets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Snippet'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    post:
+      tags:
+        - Snippets
+      summary: Create a snippet
+      description: Create a new code snippet
+      operationId: createSnippet
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Snippet'
+            example:
+              title: useState Hook Example
+              content: "const [count, setCount] = useState(0);"
+              source_url: https://chat.openai.com/c/abc123
+              source_conversation_id: 1
+              tags: ["react", "hooks"]
+              language: javascript
+      responses:
+        '201':
+          description: Snippet created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Snippet'
+        '400':
+          description: Invalid request body or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /snippets/{id}:
+    put:
+      tags:
+        - Snippets
+      summary: Update a snippet
+      description: Update an existing snippet
+      operationId: updateSnippet
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Snippet ID
+          schema:
+            type: integer
+          example: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Snippet'
+            example:
+              title: Updated useState Hook Example
+              content: "const [state, setState] = useState(initialValue);"
+              tags: ["react", "hooks", "updated"]
+              language: typescript
+      responses:
+        '200':
+          description: Snippet updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Snippet'
+        '400':
+          description: Invalid request body or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      tags:
+        - Snippets
+      summary: Delete a snippet
+      description: Delete a snippet by ID
+      operationId: deleteSnippet
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Snippet ID
+          schema:
+            type: integer
+          example: 1
+      responses:
+        '204':
+          description: Snippet deleted successfully
+        '400':
+          description: Invalid snippet ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /collections:
+    get:
+      tags:
+        - Collections
+      summary: List collections
+      description: List all collections
+      operationId: listCollections
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of collections
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Collection'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    post:
+      tags:
+        - Collections
+      summary: Create a collection
+      description: Create a new collection
+      operationId: createCollection
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Collection'
+            example:
+              name: React Tutorials
+              icon: 📚
+              color: "#3b82f6"
+      responses:
+        '201':
+          description: Collection created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Collection'
+        '400':
+          description: Invalid request body or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /collections/{id}:
+    put:
+      tags:
+        - Collections
+      summary: Update a collection
+      description: Update an existing collection
+      operationId: updateCollection
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Collection ID
+          schema:
+            type: integer
+          example: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Collection'
+            example:
+              name: Updated React Tutorials
+              icon: 🚀
+              color: "#10b981"
+      responses:
+        '200':
+          description: Collection updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Collection'
+        '400':
+          description: Invalid request body or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      tags:
+        - Collections
+      summary: Delete a collection
+      description: Delete a collection by ID
+      operationId: deleteCollection
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Collection ID
+          schema:
+            type: integer
+          example: 1
+      responses:
+        '204':
+          description: Collection deleted successfully
+        '400':
+          description: Invalid collection ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /settings:
+    get:
+      tags:
+        - Settings
+      summary: Get settings
+      description: Retrieve current extension settings
+      operationId: getSettings
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Settings retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Settings'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    post:
+      tags:
+        - Settings
+      summary: Update settings
+      description: Update extension settings (creates if not exists)
+      operationId: updateSettings
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Settings'
+            example:
+              storageMode: hybrid
+              backend_url: https://api.example.com
+              api_key: "***"
+              disable_local_cache: false
+              beast_enabled_per_domain:
+                "chat.openai.com": true
+                "claude.ai": false
+              selective_mode_enabled: true
+              devModeEnabled: false
+              xpaths_by_domain:
+                "chat.openai.com":
+                  conversation: "//div[@class='conversation']"
+                  message: "//div[@class='message']"
+      responses:
+        '200':
+          description: Settings updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Settings'
+        '400':
+          description: Invalid request body or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /backup/import:
+    post:
+      tags:
+        - Backup
+      summary: Import backup data
+      description: Import conversations, snippets, collections, and settings from a backup
+      operationId: importBackup
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BackupImportRequest'
+            example:
+              conversations:
+                - canonical_url: https://chat.openai.com/c/abc123
+                  source: chatgpt
+                  title: Example Conversation
+                  content: "User: Hello\nAssistant: Hi!"
+                  tags: ["example"]
+              snippets:
+                - title: Example Snippet
+                  content: "console.log('Hello');"
+                  tags: ["javascript"]
+              collections:
+                - name: My Collection
+                  icon: 📚
+              settings:
+                storageMode: hybrid
+      responses:
+        '200':
+          description: Backup imported successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BackupImportResponse'
+              example:
+                created: 10
+                updated: 5
+                errors: 0
+        '400':
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        Authentication using either JWT token or API key.
+        Format: `Authorization: Bearer <token_or_api_key>`
+
+  schemas:
+    Conversation:
+      type: object
+      required:
+        - canonical_url
+        - source
+        - title
+        - content
+        - tags
+        - ignore
+        - version
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: integer
+          description: Conversation ID (auto-generated)
+          example: 1
+        canonical_url:
+          type: string
+          description: Canonical URL of the conversation
+          example: https://chat.openai.com/c/abc123
+        share_url:
+          type: string
+          nullable: true
+          description: Shareable URL of the conversation
+          example: https://chat.openai.com/share/xyz789
+        source:
+          type: string
+          description: Source platform (e.g., chatgpt, claude, etc.)
+          example: chatgpt
+        title:
+          type: string
+          description: Title of the conversation
+          example: How to use React hooks
+        description:
+          type: string
+          nullable: true
+          description: Description of the conversation
+          example: A conversation about React hooks
+        content:
+          type: string
+          description: Full content of the conversation
+          example: "User: How do I use useState?\nAssistant: useState is a React hook..."
+        tags:
+          type: array
+          items:
+            type: string
+          description: Array of tags (never null, can be empty)
+          example: ["react", "hooks", "javascript"]
+        collection_id:
+          type: integer
+          nullable: true
+          description: ID of the collection this conversation belongs to
+          example: 1
+        ignore:
+          type: boolean
+          description: Whether this conversation should be ignored
+          example: false
+        version:
+          type: integer
+          description: Version number of the conversation
+          example: 1
+        created_at:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp of creation
+          example: "2024-01-15T10:30:00.000Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp of last update
+          example: "2024-01-15T10:30:00.000Z"
+
+    CreateConversationRequest:
+      type: object
+      required:
+        - canonical_url
+        - source
+        - title
+        - content
+      properties:
+        canonical_url:
+          type: string
+          description: Canonical URL of the conversation
+          example: https://chat.openai.com/c/abc123
+        share_url:
+          type: string
+          nullable: true
+          description: Shareable URL of the conversation
+          example: https://chat.openai.com/share/xyz789
+        source:
+          type: string
+          description: Source platform
+          example: chatgpt
+        title:
+          type: string
+          description: Title of the conversation
+          example: How to use React hooks
+        description:
+          type: string
+          nullable: true
+          description: Description of the conversation
+          example: A conversation about React hooks
+        content:
+          type: string
+          description: Full content of the conversation
+          example: "User: How do I use useState?\nAssistant: useState is..."
+        tags:
+          type: array
+          items:
+            type: string
+          description: Array of tags
+          example: ["react", "hooks", "javascript"]
+        collection_id:
+          type: integer
+          nullable: true
+          description: ID of the collection
+          example: 1
+        ignore:
+          type: boolean
+          description: Whether to ignore this conversation
+          default: false
+          example: false
+
+    Snippet:
+      type: object
+      required:
+        - title
+        - content
+        - tags
+        - created_at
+      properties:
+        id:
+          type: integer
+          description: Snippet ID (auto-generated)
+          example: 1
+        title:
+          type: string
+          description: Title of the snippet
+          example: useState Hook Example
+        content:
+          type: string
+          description: Code content of the snippet
+          example: "const [count, setCount] = useState(0);"
+        source_url:
+          type: string
+          nullable: true
+          description: URL where the snippet was found
+          example: https://chat.openai.com/c/abc123
+        source_conversation_id:
+          type: integer
+          nullable: true
+          description: ID of the conversation this snippet came from
+          example: 1
+        tags:
+          type: array
+          items:
+            type: string
+          description: Array of tags (never null, can be empty)
+          example: ["react", "hooks"]
+        language:
+          type: string
+          nullable: true
+          description: Programming language
+          example: javascript
+        created_at:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp of creation
+          example: "2024-01-15T10:30:00.000Z"
+
+    Collection:
+      type: object
+      required:
+        - name
+        - created_at
+      properties:
+        id:
+          type: integer
+          description: Collection ID (auto-generated)
+          example: 1
+        name:
+          type: string
+          description: Name of the collection
+          example: React Tutorials
+        icon:
+          type: string
+          nullable: true
+          description: Icon emoji or identifier
+          example: 📚
+        color:
+          type: string
+          nullable: true
+          description: Color hex code
+          example: "#3b82f6"
+        created_at:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp of creation
+          example: "2024-01-15T10:30:00.000Z"
+
+    Settings:
+      type: object
+      required:
+        - storageMode
+        - beast_enabled_per_domain
+        - selective_mode_enabled
+        - devModeEnabled
+        - xpaths_by_domain
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: integer
+          description: Settings ID (auto-generated)
+          example: 1
+        storageMode:
+          type: string
+          description: Storage mode (local, remote, hybrid)
+          example: hybrid
+        backend_url:
+          type: string
+          nullable: true
+          description: Backend API URL
+          example: https://api.example.com
+        api_key:
+          type: string
+          nullable: true
+          description: API key for backend authentication
+          example: "***"
+        disable_local_cache:
+          type: boolean
+          description: Whether to disable local cache
+          default: false
+          example: false
+        beast_enabled_per_domain:
+          type: object
+          additionalProperties:
+            type: boolean
+          description: Map of domain to beast mode enabled status
+          example:
+            "chat.openai.com": true
+            "claude.ai": false
+        selective_mode_enabled:
+          type: boolean
+          description: Whether selective mode is enabled
+          default: false
+          example: true
+        devModeEnabled:
+          type: boolean
+          description: Whether dev mode is enabled
+          default: false
+          example: false
+        xpaths_by_domain:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/XPathConfig'
+          description: Map of domain to XPath configuration
+          example:
+            "chat.openai.com":
+              conversation: "//div[@class='conversation']"
+              message: "//div[@class='message']"
+        created_at:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp of creation
+          example: "2024-01-15T10:30:00.000Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp of last update
+          example: "2024-01-15T10:30:00.000Z"
+
+    XPathConfig:
+      type: object
+      required:
+        - conversation
+        - message
+      properties:
+        conversation:
+          type: string
+          description: XPath for conversation container
+          example: "//div[@class='conversation']"
+        message:
+          type: string
+          description: XPath for message elements
+          example: "//div[@class='message']"
+
+    BackupImportRequest:
+      type: object
+      properties:
+        conversations:
+          type: array
+          items:
+            $ref: '#/components/schemas/Conversation'
+          description: Array of conversations to import
+        snippets:
+          type: array
+          items:
+            $ref: '#/components/schemas/Snippet'
+          description: Array of snippets to import
+        collections:
+          type: array
+          items:
+            $ref: '#/components/schemas/Collection'
+          description: Array of collections to import
+        settings:
+          $ref: '#/components/schemas/Settings'
+          nullable: true
+          description: Settings to import
+
+    BackupImportResponse:
+      type: object
+      required:
+        - created
+        - updated
+        - errors
+      properties:
+        created:
+          type: integer
+          description: Number of items created
+          example: 10
+        updated:
+          type: integer
+          description: Number of items updated
+          example: 5
+        errors:
+          type: integer
+          description: Number of errors encountered
+          example: 0
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+          example: Invalid request body
+        code:
+          type: string
+          description: Error code
+          enum:
+            - BAD_REQUEST
+            - UNAUTHORIZED
+            - FORBIDDEN
+            - NOT_FOUND
+            - INTERNAL_SERVER_ERROR
+            - SERVICE_UNAVAILABLE
+            - UNKNOWN_ERROR
+          example: BAD_REQUEST
+
