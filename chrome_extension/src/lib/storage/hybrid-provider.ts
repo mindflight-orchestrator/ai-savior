@@ -4,6 +4,7 @@ import type { Snippet } from '../../types/snippet';
 import type { Collection } from '../../types/collection';
 import type { Settings } from '../../types/settings';
 import type { SearchFilters, SnippetFilters } from '../../types/search-filters';
+import type { BackupData, ImportOptions, ImportResult } from '../../types/backup';
 import { IndexedDBProvider } from './indexeddb-provider';
 
 /**
@@ -308,6 +309,65 @@ export class HybridProvider implements StorageProvider {
     });
 
     await Promise.all([localPromise, remotePromise]);
+  }
+
+  // ========== Backup & Restore ==========
+
+  /**
+   * Export backup (from local cache)
+   */
+  async exportBackup(): Promise<BackupData> {
+    // Use local provider for export
+    if (this.localProvider instanceof IndexedDBProvider) {
+      return await this.localProvider.exportBackup();
+    }
+    throw new Error('Export backup not supported in this configuration');
+  }
+
+  /**
+   * Download backup
+   */
+  async downloadBackup(): Promise<void> {
+    if (this.localProvider instanceof IndexedDBProvider) {
+      return await this.localProvider.downloadBackup();
+    }
+    throw new Error('Download backup not supported in this configuration');
+  }
+
+  /**
+   * Import backup (to both local and remote)
+   */
+  async importBackup(backup: BackupData, options?: ImportOptions): Promise<ImportResult> {
+    // Import to local first
+    let localResult: ImportResult;
+    if (this.localProvider instanceof IndexedDBProvider) {
+      localResult = await this.localProvider.importBackup(backup, options);
+    } else {
+      localResult = { created: 0, updated: 0, errors: 0 };
+    }
+
+    // Import to remote if it supports it
+    if ('importBackup' in this.remoteProvider && typeof this.remoteProvider.importBackup === 'function') {
+      try {
+        const remoteResult = await (this.remoteProvider as any).importBackup(backup);
+        // Merge results
+        return {
+          created: localResult.created + remoteResult.created,
+          updated: localResult.updated + remoteResult.updated,
+          errors: localResult.errors + remoteResult.errors,
+          errors_details: [
+            ...(localResult.errors_details || []),
+            ...(remoteResult.errors_details || []),
+          ],
+        };
+      } catch (error) {
+        console.warn('[Hybrid] Error importing to remote:', error);
+        // Return local result even if remote fails
+        return localResult;
+      }
+    }
+
+    return localResult;
   }
 }
 

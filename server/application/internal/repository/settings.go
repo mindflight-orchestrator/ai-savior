@@ -24,7 +24,8 @@ func NewSettingsRepository(pool *pgxpool.Pool, schema string) *SettingsRepositor
 
 func (r *SettingsRepository) Get(ctx context.Context) (*models.Settings, error) {
 	query := fmt.Sprintf(`
-		SELECT id, storage_mode, beast_enabled_per_domain, selective_mode_enabled,
+		SELECT id, storage_mode, backend_url, api_key, disable_local_cache,
+		       beast_enabled_per_domain, selective_mode_enabled,
 		       dev_mode_enabled, xpaths_by_domain, created_at, updated_at
 		FROM "%s".settings
 		WHERE id = 1
@@ -35,7 +36,8 @@ func (r *SettingsRepository) Get(ctx context.Context) (*models.Settings, error) 
 	var xpathsJSON []byte
 
 	err := r.pool.QueryRow(ctx, query).Scan(
-		&settings.ID, &settings.StorageMode, &beastEnabledJSON,
+		&settings.ID, &settings.StorageMode, &settings.BackendURL, &settings.APIKey,
+		&settings.DisableLocalCache, &beastEnabledJSON,
 		&settings.SelectiveModeEnabled, &settings.DevModeEnabled,
 		&xpathsJSON, &settings.CreatedAt, &settings.UpdatedAt,
 	)
@@ -76,11 +78,15 @@ func (r *SettingsRepository) Update(ctx context.Context, settings *models.Settin
 
 	query := fmt.Sprintf(`
 		INSERT INTO "%s".settings
-		(id, storage_mode, beast_enabled_per_domain, selective_mode_enabled,
+		(id, storage_mode, backend_url, api_key, disable_local_cache,
+		 beast_enabled_per_domain, selective_mode_enabled,
 		 dev_mode_enabled, xpaths_by_domain, created_at, updated_at)
-		VALUES (1, $1, $2, $3, $4, $5, NOW(), NOW())
+		VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
 		ON CONFLICT (id) DO UPDATE SET
 			storage_mode = EXCLUDED.storage_mode,
+			backend_url = EXCLUDED.backend_url,
+			api_key = EXCLUDED.api_key,
+			disable_local_cache = EXCLUDED.disable_local_cache,
 			beast_enabled_per_domain = EXCLUDED.beast_enabled_per_domain,
 			selective_mode_enabled = EXCLUDED.selective_mode_enabled,
 			dev_mode_enabled = EXCLUDED.dev_mode_enabled,
@@ -90,7 +96,8 @@ func (r *SettingsRepository) Update(ctx context.Context, settings *models.Settin
 	`, r.schema)
 
 	err = r.pool.QueryRow(ctx, query,
-		settings.StorageMode, beastEnabledJSON, settings.SelectiveModeEnabled,
+		settings.StorageMode, settings.BackendURL, settings.APIKey, settings.DisableLocalCache,
+		beastEnabledJSON, settings.SelectiveModeEnabled,
 		settings.DevModeEnabled, xpathsJSON,
 	).Scan(&settings.CreatedAt, &settings.UpdatedAt)
 	if err != nil {

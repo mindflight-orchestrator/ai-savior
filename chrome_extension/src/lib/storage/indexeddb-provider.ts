@@ -4,6 +4,7 @@ import type { Snippet } from '../../types/snippet';
 import type { Collection } from '../../types/collection';
 import type { Settings } from '../../types/settings';
 import type { SearchFilters, SnippetFilters } from '../../types/search-filters';
+import type { BackupData, ImportOptions, ImportResult } from '../../types/backup';
 import { openDatabase } from './indexeddb-schema';
 import { initializeDefaultSettings } from './indexeddb-utils';
 
@@ -369,5 +370,210 @@ export class IndexedDBProvider implements StorageProvider {
       request.onsuccess = () => resolve();
       request.onerror = () => reject(request.error);
     });
+  }
+
+  // ========== Backup & Restore ==========
+
+  /**
+   * Export all data to BackupData structure
+   */
+  async exportBackup(): Promise<BackupData> {
+    const db = await this.getDB();
+
+    // Read all conversations
+    const conversations = await new Promise<Conversation[]>((resolve, reject) => {
+      const tx = db.transaction('conversations', 'readonly');
+      const store = tx.objectStore('conversations');
+      const results: Conversation[] = [];
+      const request = store.openCursor();
+
+      request.onsuccess = (e) => {
+        const cursor = (e.target as IDBRequest<IDBCursorWithValue>).result;
+        if (cursor) {
+          const value = cursor.value;
+          results.push({
+            ...value,
+            created_at: new Date(value.created_at),
+            updated_at: new Date(value.updated_at),
+          });
+          cursor.continue();
+        } else {
+          resolve(results);
+        }
+      };
+      request.onerror = () => reject(request.error);
+    });
+
+    // Read all snippets
+    const snippets = await new Promise<Snippet[]>((resolve, reject) => {
+      const tx = db.transaction('snippets', 'readonly');
+      const store = tx.objectStore('snippets');
+      const results: Snippet[] = [];
+      const request = store.openCursor();
+
+      request.onsuccess = (e) => {
+        const cursor = (e.target as IDBRequest<IDBCursorWithValue>).result;
+        if (cursor) {
+          const value = cursor.value;
+          results.push({
+            ...value,
+            created_at: new Date(value.created_at),
+          });
+          cursor.continue();
+        } else {
+          resolve(results);
+        }
+      };
+      request.onerror = () => reject(request.error);
+    });
+
+    // Read all collections
+    const collections = await new Promise<Collection[]>((resolve, reject) => {
+      const tx = db.transaction('collections', 'readonly');
+      const store = tx.objectStore('collections');
+      const results: Collection[] = [];
+      const request = store.openCursor();
+
+      request.onsuccess = (e) => {
+        const cursor = (e.target as IDBRequest<IDBCursorWithValue>).result;
+        if (cursor) {
+          const value = cursor.value;
+          results.push({
+            ...value,
+            created_at: new Date(value.created_at),
+          });
+          cursor.continue();
+        } else {
+          resolve(results);
+        }
+      };
+      request.onerror = () => reject(request.error);
+    });
+
+    // Read settings
+    const settings = await this.getSettings();
+
+    // Convert Date objects to ISO 8601 strings
+    const backup: BackupData = {
+      version: '1.0',
+      exported_at: new Date().toISOString(),
+      conversations: conversations.map(conv => ({
+        ...conv,
+        created_at: conv.created_at instanceof Date ? conv.created_at : new Date(conv.created_at),
+        updated_at: conv.updated_at instanceof Date ? conv.updated_at : new Date(conv.updated_at),
+      })),
+      snippets: snippets.map(snippet => ({
+        ...snippet,
+        created_at: snippet.created_at instanceof Date ? snippet.created_at : new Date(snippet.created_at),
+      })),
+      collections: collections.map(collection => ({
+        ...collection,
+        created_at: collection.created_at instanceof Date ? collection.created_at : new Date(collection.created_at),
+      })),
+      settings,
+    };
+
+    return backup;
+  }
+
+  /**
+   * Download backup as JSON file
+   */
+  async downloadBackup(): Promise<void> {
+    const backup = await this.exportBackup();
+    const json = JSON.stringify(backup, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `ai-saver-backup-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    
+    URL.revokeObjectURL(url);
+  }
+
+  /**
+   * Import backup from BackupData
+   */
+  async importBackup(backup: BackupData, options?: ImportOptions): Promise<ImportResult> {
+    const overwrite = options?.overwrite ?? true;
+    const skipSettings = options?.skipSettings ?? false;
+
+    const result: ImportResult = {
+      created: 0,
+      updated: 0,
+      errors: 0,
+      errors_details: [],
+    };
+
+    // Import conversations
+    for (const conv of backup.conversations) {
+      try {
+        const existing = await this.getConversationByUrl(conv.canonical_url);
+        if (existing) {
+          if (overwrite) {
+            await this.saveConversation({
+              ...conv,
+              id: existing.id,
+              version: existing.version + 1,
+            });
+            result.updated++;
+          }
+        } else {
+          await this.saveConversation(conv);
+          result.created++;
+        }
+      } catch (error) {
+        result.errors++;
+        result.errors_details?.push(`Conversation ${conv.canonical_url}: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+
+    // Import snippets
+    for (const snippet of backup.snippets) {
+      try {
+        await this.saveSnippet(snippet);
+        // If snippet has ID, it's an update; otherwise it's a create
+        if (snippet.id) {
+          result.updated++;
+        } else {
+          result.created++;
+        }
+      } catch (error) {
+        result.errors++;
+        result.errors_details?.push(`Snippet ${snippet.title}: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+
+    // Import collections
+    for (const collection of backup.collections) {
+      try {
+        await this.saveCollection(collection);
+        if (collection.id) {
+          result.updated++;
+        } else {
+          result.created++;
+        }
+      } catch (error) {
+        result.errors++;
+        result.errors_details?.push(`Collection ${collection.name}: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+
+    // Import settings (if not skipped)
+    if (!skipSettings && backup.settings) {
+      try {
+        await this.saveSettings(backup.settings);
+        result.updated++;
+      } catch (error) {
+        result.errors++;
+        result.errors_details?.push(`Settings: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+
+    return result;
   }
 }

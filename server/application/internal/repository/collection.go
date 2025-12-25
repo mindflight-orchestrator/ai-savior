@@ -41,6 +41,26 @@ func (r *CollectionRepository) GetByID(ctx context.Context, id int) (*models.Col
 	return &collection, nil
 }
 
+func (r *CollectionRepository) GetByName(ctx context.Context, name string) (*models.Collection, error) {
+	query := fmt.Sprintf(`
+		SELECT id, name, icon, color, created_at
+		FROM "%s".collections
+		WHERE name = $1
+	`, r.schema)
+
+	var collection models.Collection
+	err := r.pool.QueryRow(ctx, query, name).Scan(
+		&collection.ID, &collection.Name, &collection.Icon, &collection.Color, &collection.CreatedAt,
+	)
+	if err == pgx.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get collection by name: %w", err)
+	}
+	return &collection, nil
+}
+
 func (r *CollectionRepository) List(ctx context.Context) ([]models.Collection, error) {
 	query := fmt.Sprintf(`
 		SELECT id, name, icon, color, created_at
@@ -70,14 +90,22 @@ func (r *CollectionRepository) List(ctx context.Context) ([]models.Collection, e
 }
 
 func (r *CollectionRepository) Create(ctx context.Context, collection *models.Collection) error {
+	// Use provided date if not zero, otherwise use NULL to trigger DEFAULT (NOW())
+	var createdAt interface{}
+	if collection.CreatedAt.IsZero() {
+		createdAt = nil // Will use DEFAULT NOW()
+	} else {
+		createdAt = collection.CreatedAt
+	}
+
 	query := fmt.Sprintf(`
 		INSERT INTO "%s".collections (name, icon, color, created_at)
-		VALUES ($1, $2, $3, NOW())
+		VALUES ($1, $2, $3, $4)
 		RETURNING id, created_at
 	`, r.schema)
 
 	err := r.pool.QueryRow(ctx, query,
-		collection.Name, collection.Icon, collection.Color,
+		collection.Name, collection.Icon, collection.Color, createdAt,
 	).Scan(&collection.ID, &collection.CreatedAt)
 	if err != nil {
 		return fmt.Errorf("failed to create collection: %w", err)

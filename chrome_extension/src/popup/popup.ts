@@ -766,6 +766,9 @@ async function initSettingsUI() {
     await saveSettings(next);
     setStorageBadge(mode, next.disable_local_cache, next.backend_url);
     if (cloudSettings) cloudSettings.style.display = mode === 'cloud' ? 'block' : 'none';
+    // Update settings reference for visibility check
+    Object.assign(settings, next);
+    updateImportRemoteVisibility();
   };
 
   localRadio?.addEventListener('change', async () => {
@@ -780,7 +783,13 @@ async function initSettingsUI() {
     next.backend_url = backendUrl.value.trim() || undefined;
     await saveSettings(next);
     setStorageBadge(next.storageMode, next.disable_local_cache, next.backend_url);
+    // Update settings reference for visibility check
+    Object.assign(settings, next);
+    updateImportRemoteVisibility();
   });
+
+  // Initial visibility update
+  updateImportRemoteVisibility();
   apiKey?.addEventListener('change', async () => {
     const next = await loadSettings();
     next.api_key = apiKey.value.trim() || undefined;
@@ -878,6 +887,181 @@ async function initSettingsUI() {
     const next = await loadSettings();
     next.devModeEnabled = devToggle.checked;
     await saveSettings(next);
+  });
+
+  // Backup & Restore
+  const exportBackupBtn = document.getElementById('export-backup') as HTMLButtonElement | null;
+  const importBackupBtn = document.getElementById('import-backup') as HTMLButtonElement | null;
+  const backupFileInput = document.getElementById('backup-file-input') as HTMLInputElement | null;
+  const backupStatus = document.getElementById('backup-status') as HTMLElement | null;
+  const importRemoteContainer = document.getElementById('import-remote-container') as HTMLElement | null;
+  const importBackupRemoteBtn = document.getElementById('import-backup-remote') as HTMLButtonElement | null;
+
+  // Show import remote button only in cloud mode
+  const updateImportRemoteVisibility = () => {
+    if (importRemoteContainer) {
+      const shouldShow = settings.storageMode === 'cloud' && settings.backend_url;
+      importRemoteContainer.style.display = shouldShow ? 'block' : 'none';
+    }
+  };
+
+  exportBackupBtn?.addEventListener('click', async () => {
+    if (!backupStatus) return;
+    try {
+      backupStatus.textContent = 'Export en cours...';
+      backupStatus.style.color = '#444';
+      
+      // Get provider from service worker
+      const response = await chrome.runtime.sendMessage({ action: 'exportBackup' });
+      
+      if (response.error) {
+        backupStatus.textContent = `❌ Erreur: ${response.error}`;
+        backupStatus.style.color = '#d32f2f';
+      } else {
+        backupStatus.textContent = '✅ Backup exporté avec succès';
+        backupStatus.style.color = '#10b981';
+        setTimeout(() => {
+          if (backupStatus) backupStatus.textContent = '';
+        }, 3000);
+      }
+    } catch (error) {
+      if (backupStatus) {
+        backupStatus.textContent = `❌ Erreur: ${error instanceof Error ? error.message : String(error)}`;
+        backupStatus.style.color = '#d32f2f';
+      }
+    }
+  });
+
+  importBackupBtn?.addEventListener('click', () => {
+    backupFileInput?.click();
+  });
+
+  backupFileInput?.addEventListener('change', async (e) => {
+    const file = (e.target as HTMLInputElement).files?.[0];
+    if (!file || !backupStatus) return;
+
+    try {
+      backupStatus.textContent = 'Import en cours...';
+      backupStatus.style.color = '#444';
+
+      const text = await file.text();
+      const backup = JSON.parse(text);
+
+      // Validate backup format
+      if (!backup.version || !backup.exported_at) {
+        throw new Error('Format de backup invalide');
+      }
+
+      // Confirm before import
+      const confirmed = confirm(
+        `Importer le backup du ${new Date(backup.exported_at).toLocaleDateString()}?\n\n` +
+        `- ${backup.conversations?.length || 0} conversations\n` +
+        `- ${backup.snippets?.length || 0} snippets\n` +
+        `- ${backup.collections?.length || 0} collections\n\n` +
+        `Les données existantes seront mises à jour si elles existent déjà.`
+      );
+
+      if (!confirmed) {
+        backupStatus.textContent = '';
+        return;
+      }
+
+      const response = await chrome.runtime.sendMessage({
+        action: 'importBackup',
+        backup,
+        options: {
+          overwrite: true,
+          skipSettings: false,
+        },
+      });
+
+      if (response.error) {
+        backupStatus.textContent = `❌ Erreur: ${response.error}`;
+        backupStatus.style.color = '#d32f2f';
+      } else {
+        const result = response.result;
+        backupStatus.textContent = `✅ Import réussi: ${result.created} créés, ${result.updated} mis à jour${result.errors > 0 ? `, ${result.errors} erreurs` : ''}`;
+        backupStatus.style.color = result.errors > 0 ? '#f59e0b' : '#10b981';
+      }
+    } catch (error) {
+      if (backupStatus) {
+        backupStatus.textContent = `❌ Erreur: ${error instanceof Error ? error.message : String(error)}`;
+        backupStatus.style.color = '#d32f2f';
+      }
+    } finally {
+      // Reset file input
+      if (backupFileInput) backupFileInput.value = '';
+    }
+  });
+
+  importBackupRemoteBtn?.addEventListener('click', () => {
+    if (!backupFileInput || !backupStatus) return;
+
+    // Create a separate file input for remote import to avoid conflicts
+    const remoteFileInput = document.createElement('input');
+    remoteFileInput.type = 'file';
+    remoteFileInput.accept = '.json';
+    remoteFileInput.style.display = 'none';
+
+    remoteFileInput.addEventListener('change', async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file || !backupStatus) {
+        document.body.removeChild(remoteFileInput);
+        return;
+      }
+
+      try {
+        backupStatus.textContent = 'Import vers le serveur en cours...';
+        backupStatus.style.color = '#444';
+
+        const text = await file.text();
+        const backup = JSON.parse(text);
+
+        // Validate backup format
+        if (!backup.version || !backup.exported_at) {
+          throw new Error('Format de backup invalide');
+        }
+
+        // Confirm before import
+        const confirmed = confirm(
+          `Importer le backup vers le serveur distant?\n\n` +
+          `- ${backup.conversations?.length || 0} conversations\n` +
+          `- ${backup.snippets?.length || 0} snippets\n` +
+          `- ${backup.collections?.length || 0} collections\n\n` +
+          `Les données existantes seront mises à jour si elles existent déjà.`
+        );
+
+        if (!confirmed) {
+          backupStatus.textContent = '';
+          document.body.removeChild(remoteFileInput);
+          return;
+        }
+
+        const response = await chrome.runtime.sendMessage({
+          action: 'importBackupRemote',
+          backup,
+        });
+
+        if (response.error) {
+          backupStatus.textContent = `❌ Erreur: ${response.error}`;
+          backupStatus.style.color = '#d32f2f';
+        } else {
+          const result = response.result;
+          backupStatus.textContent = `✅ Import réussi: ${result.created} créés, ${result.updated} mis à jour${result.errors > 0 ? `, ${result.errors} erreurs` : ''}`;
+          backupStatus.style.color = result.errors > 0 ? '#f59e0b' : '#10b981';
+        }
+      } catch (error) {
+        if (backupStatus) {
+          backupStatus.textContent = `❌ Erreur: ${error instanceof Error ? error.message : String(error)}`;
+          backupStatus.style.color = '#d32f2f';
+        }
+      } finally {
+        document.body.removeChild(remoteFileInput);
+      }
+    }, { once: true });
+
+    document.body.appendChild(remoteFileInput);
+    remoteFileInput.click();
   });
 }
 

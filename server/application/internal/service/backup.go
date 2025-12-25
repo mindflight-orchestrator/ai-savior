@@ -44,17 +44,17 @@ func (s *BackupService) Import(ctx context.Context, backup *models.BackupImportR
 		}
 
 		if existing != nil {
-			// Update existing
+			// Update existing - preserve original creation date
 			conv.ID = existing.ID
 			conv.Version = existing.Version + 1
-			conv.CreatedAt = existing.CreatedAt
+			conv.CreatedAt = existing.CreatedAt // Preserve original creation date
 			if err := s.conversationRepo.Update(ctx, &conv); err != nil {
 				response.Errors++
 				continue
 			}
 			response.Updated++
 		} else {
-			// Create new
+			// Create new - dates will be preserved if provided in backup
 			if conv.Version == 0 {
 				conv.Version = 1
 			}
@@ -66,18 +66,36 @@ func (s *BackupService) Import(ctx context.Context, backup *models.BackupImportR
 		}
 	}
 
-	// Import snippets
-	for _, snippet := range backup.Snippets {
-		if err := s.snippetRepo.Create(ctx, &snippet); err != nil {
+	// Import collections first (they may be referenced by conversations)
+	for _, collection := range backup.Collections {
+		existing, err := s.collectionRepo.GetByName(ctx, collection.Name)
+		if err != nil {
 			response.Errors++
 			continue
 		}
-		response.Created++
+
+		if existing != nil {
+			// Update existing collection
+			collection.ID = existing.ID
+			collection.CreatedAt = existing.CreatedAt // Preserve original creation date
+			if err := s.collectionRepo.Update(ctx, &collection); err != nil {
+				response.Errors++
+				continue
+			}
+			response.Updated++
+		} else {
+			// Create new collection (dates will be preserved if provided in backup)
+			if err := s.collectionRepo.Create(ctx, &collection); err != nil {
+				response.Errors++
+				continue
+			}
+			response.Created++
+		}
 	}
 
-	// Import collections
-	for _, collection := range backup.Collections {
-		if err := s.collectionRepo.Create(ctx, &collection); err != nil {
+	// Import snippets (dates will be preserved if provided in backup)
+	for _, snippet := range backup.Snippets {
+		if err := s.snippetRepo.Create(ctx, &snippet); err != nil {
 			response.Errors++
 			continue
 		}

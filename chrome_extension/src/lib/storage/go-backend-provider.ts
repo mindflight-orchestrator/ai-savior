@@ -4,6 +4,7 @@ import type { Snippet } from '../../types/snippet';
 import type { Collection } from '../../types/collection';
 import type { Settings } from '../../types/settings';
 import type { SearchFilters, SnippetFilters } from '../../types/search-filters';
+import type { BackupData, ImportResult } from '../../types/backup';
 
 /**
  * Go Backend Provider
@@ -303,6 +304,39 @@ export class GoBackendProvider implements StorageProvider {
       '/api/settings',
       settings
     );
+  }
+
+  // ========== Backup & Restore ==========
+
+  /**
+   * Import backup to remote backend
+   */
+  async importBackup(backup: BackupData): Promise<ImportResult> {
+    // Convert Date objects to ISO 8601 strings for API
+    const payload = {
+      conversations: backup.conversations.map(conv => ({
+        ...conv,
+        created_at: conv.created_at instanceof Date ? conv.created_at.toISOString() : conv.created_at,
+        updated_at: conv.updated_at instanceof Date ? conv.updated_at.toISOString() : conv.updated_at,
+      })),
+      snippets: backup.snippets.map(snippet => ({
+        ...snippet,
+        created_at: snippet.created_at instanceof Date ? snippet.created_at.toISOString() : snippet.created_at,
+      })),
+      collections: backup.collections.map(collection => ({
+        ...collection,
+        created_at: collection.created_at instanceof Date ? collection.created_at.toISOString() : collection.created_at,
+      })),
+      settings: backup.settings,
+    };
+
+    const result = await this.request<ImportResult>(
+      'POST',
+      '/api/backup/import',
+      payload
+    );
+
+    return result;
   }
 
   // ========== Connection Test ==========

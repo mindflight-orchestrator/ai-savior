@@ -54,6 +54,9 @@ CREATE TABLE IF NOT EXISTS "mfo-server".collections (
 CREATE TABLE IF NOT EXISTS "mfo-server".settings (
     id INTEGER PRIMARY KEY DEFAULT 1,
     storage_mode VARCHAR(20) DEFAULT 'local',
+    backend_url TEXT,
+    api_key TEXT,
+    disable_local_cache BOOLEAN DEFAULT FALSE,
     beast_enabled_per_domain JSONB DEFAULT '{}',
     selective_mode_enabled BOOLEAN DEFAULT FALSE,
     dev_mode_enabled BOOLEAN DEFAULT FALSE,

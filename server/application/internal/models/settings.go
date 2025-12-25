@@ -9,6 +9,9 @@ import (
 type Settings struct {
 	ID                    *int                  `json:"id,omitempty" db:"id"`
 	StorageMode           string                 `json:"storageMode" db:"storage_mode"`
+	BackendURL            *string                `json:"backend_url,omitempty" db:"backend_url"`
+	APIKey                *string                `json:"api_key,omitempty" db:"api_key"`
+	DisableLocalCache     bool                   `json:"disable_local_cache,omitempty" db:"disable_local_cache"`
 	BeastEnabledPerDomain map[string]bool        `json:"beast_enabled_per_domain" db:"beast_enabled_per_domain"`
 	SelectiveModeEnabled  bool                   `json:"selective_mode_enabled" db:"selective_mode_enabled"`
 	DevModeEnabled        bool                   `json:"devModeEnabled" db:"dev_mode_enabled"`

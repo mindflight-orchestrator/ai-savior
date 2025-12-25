@@ -71,18 +71,31 @@ func (r *ConversationRepository) GetByCanonicalURL(ctx context.Context, url stri
 }
 
 func (r *ConversationRepository) Create(ctx context.Context, conv *models.Conversation) error {
+	// Use provided dates if not zero, otherwise use NULL to trigger DEFAULT (NOW())
+	var createdAt, updatedAt interface{}
+	if conv.CreatedAt.IsZero() {
+		createdAt = nil // Will use DEFAULT NOW()
+	} else {
+		createdAt = conv.CreatedAt
+	}
+	if conv.UpdatedAt.IsZero() {
+		updatedAt = nil // Will use DEFAULT NOW()
+	} else {
+		updatedAt = conv.UpdatedAt
+	}
+
 	query := fmt.Sprintf(`
 		INSERT INTO "%s".conversations
 		(canonical_url, share_url, source, title, description, content, tags,
 		 collection_id, ignore, version, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW())
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 		RETURNING id, created_at, updated_at
 	`, r.schema)
 
 	err := r.pool.QueryRow(ctx, query,
 		conv.CanonicalURL, conv.ShareURL, conv.Source, conv.Title,
 		conv.Description, conv.Content, conv.Tags, conv.CollectionID,
-		conv.Ignore, conv.Version,
+		conv.Ignore, conv.Version, createdAt, updatedAt,
 	).Scan(&conv.ID, &conv.CreatedAt, &conv.UpdatedAt)
 	if err != nil {
 		return fmt.Errorf("failed to create conversation: %w", err)

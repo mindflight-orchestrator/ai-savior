@@ -359,6 +359,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       handleListCollections(sendResponse);
       return true;
 
+    case 'exportBackup':
+      handleExportBackup(sendResponse);
+      return true;
+
+    case 'importBackup':
+      handleImportBackup(message.backup, message.options, sendResponse);
+      return true;
+
+    case 'importBackupRemote':
+      handleImportBackupRemote(message.backup, sendResponse);
+      return true;
+
     default:
       console.warn('Unknown action:', message.action);
       sendResponse({ error: 'Unknown action' });
@@ -734,6 +746,80 @@ async function handleListCollections(sendResponse: (response: any) => void) {
     sendResponse({ collections });
   } catch (error) {
     console.error('Error listing collections:', error);
+    sendResponse({ error: error instanceof Error ? error.message : String(error) });
+  }
+}
+
+// Handle exportBackup request
+async function handleExportBackup(sendResponse: (response: any) => void) {
+  try {
+    const provider = await getProvider();
+    
+    // Check if provider supports exportBackup
+    if ('exportBackup' in provider && typeof provider.exportBackup === 'function') {
+      await (provider as any).downloadBackup();
+      sendResponse({ success: true });
+    } else if ('downloadBackup' in provider && typeof provider.downloadBackup === 'function') {
+      await (provider as any).downloadBackup();
+      sendResponse({ success: true });
+    } else {
+      // Fallback: use IndexedDBProvider directly
+      const { IndexedDBProvider } = await import('../lib/storage/indexeddb-provider');
+      const idbProvider = new IndexedDBProvider();
+      await idbProvider.downloadBackup();
+      sendResponse({ success: true });
+    }
+  } catch (error) {
+    console.error('Error exporting backup:', error);
+    sendResponse({ error: error instanceof Error ? error.message : String(error) });
+  }
+}
+
+// Handle importBackup request
+async function handleImportBackup(backup: any, options: any, sendResponse: (response: any) => void) {
+  try {
+    const provider = await getProvider();
+    
+    // Check if provider supports importBackup
+    if ('importBackup' in provider && typeof provider.importBackup === 'function') {
+      const result = await (provider as any).importBackup(backup, options);
+      sendResponse({ success: true, result });
+    } else {
+      // Fallback: use IndexedDBProvider directly
+      const { IndexedDBProvider } = await import('../lib/storage/indexeddb-provider');
+      const idbProvider = new IndexedDBProvider();
+      const result = await idbProvider.importBackup(backup, options);
+      sendResponse({ success: true, result });
+    }
+  } catch (error) {
+    console.error('Error importing backup:', error);
+    sendResponse({ error: error instanceof Error ? error.message : String(error) });
+  }
+}
+
+// Handle importBackupRemote request
+async function handleImportBackupRemote(backup: any, sendResponse: (response: any) => void) {
+  try {
+    const provider = await getProvider();
+    
+    // Check if provider supports importBackup (for remote)
+    if ('importBackup' in provider && typeof provider.importBackup === 'function') {
+      const result = await (provider as any).importBackup(backup);
+      sendResponse({ success: true, result });
+    } else {
+      // Try to get GoBackendProvider directly
+      const settingsData = await chrome.storage.local.get(['backend_url', 'api_key']);
+      if (settingsData.backend_url) {
+        const { GoBackendProvider } = await import('../lib/storage/go-backend-provider');
+        const goProvider = new GoBackendProvider(settingsData.backend_url, settingsData.api_key);
+        const result = await goProvider.importBackup(backup);
+        sendResponse({ success: true, result });
+      } else {
+        throw new Error('Mode cloud non configuré');
+      }
+    }
+  } catch (error) {
+    console.error('Error importing backup to remote:', error);
     sendResponse({ error: error instanceof Error ? error.message : String(error) });
   }
 }

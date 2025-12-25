@@ -177,6 +177,25 @@
       </section>
 
       <section style="margin-bottom: 16px;">
+        <h3 style="margin-bottom: 8px;">Backup & Restore</h3>
+        <div style="display:flex; gap:8px; margin-bottom: 8px;">
+          <button id="export-backup" type="button" style="flex:1; padding:8px; border:none; background:#4285f4; color:white; border-radius:6px; cursor:pointer; font-size:13px;">
+            Exporter Backup
+          </button>
+          <button id="import-backup" type="button" style="flex:1; padding:8px; border:1px solid #ddd; background:white; border-radius:6px; cursor:pointer; font-size:13px;">
+            Importer Backup
+          </button>
+        </div>
+        <input type="file" id="backup-file-input" accept=".json" style="display:none;">
+        <div id="backup-status" style="font-size: 12px; color:#444; margin-top: 8px;"></div>
+        <div id="import-remote-container" style="margin-top: 8px; display:none;">
+          <button id="import-backup-remote" type="button" style="width:100%; padding:8px; border:1px solid #4285f4; background:white; color:#4285f4; border-radius:6px; cursor:pointer; font-size:13px;">
+            Importer vers le serveur distant
+          </button>
+        </div>
+      </section>
+
+      <section style="margin-bottom: 16px;">
         <h3 style="margin-bottom: 8px;">Mode développeur</h3>
         <label style="display:block; margin-bottom: 6px;">
           <input type="checkbox" id="dev-mode-toggle">

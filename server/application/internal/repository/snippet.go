@@ -100,16 +100,24 @@ func (r *SnippetRepository) List(ctx context.Context, filters models.SnippetFilt
 }
 
 func (r *SnippetRepository) Create(ctx context.Context, snippet *models.Snippet) error {
+	// Use provided date if not zero, otherwise use NULL to trigger DEFAULT (NOW())
+	var createdAt interface{}
+	if snippet.CreatedAt.IsZero() {
+		createdAt = nil // Will use DEFAULT NOW()
+	} else {
+		createdAt = snippet.CreatedAt
+	}
+
 	query := fmt.Sprintf(`
 		INSERT INTO "%s".snippets
 		(title, content, source_url, source_conversation_id, tags, language, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, NOW())
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		RETURNING id, created_at
 	`, r.schema)
 
 	err := r.pool.QueryRow(ctx, query,
 		snippet.Title, snippet.Content, snippet.SourceURL,
-		snippet.SourceConversationID, snippet.Tags, snippet.Language,
+		snippet.SourceConversationID, snippet.Tags, snippet.Language, createdAt,
 	).Scan(&snippet.ID, &snippet.CreatedAt)
 	if err != nil {
 		return fmt.Errorf("failed to create snippet: %w", err)
