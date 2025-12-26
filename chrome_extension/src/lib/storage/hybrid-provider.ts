@@ -139,20 +139,31 @@ export class HybridProvider implements StorageProvider {
 
   async deleteConversation(id: number): Promise<void> {
     // Delete from both
-    const localPromise = this.localProvider.deleteConversation(id).catch((error) => {
+    // Local deletion is critical - if it fails, we should throw
+    let localError: Error | null = null;
+    try {
+      await this.localProvider.deleteConversation(id);
+    } catch (error) {
       console.warn('[Hybrid] Error deleting from local cache:', error);
-    });
+      localError = error instanceof Error ? error : new Error(String(error));
+    }
 
-    const remotePromise = this.remoteProvider.deleteConversation(id).catch((error) => {
+    // Remote deletion is best-effort - if it fails, we continue (local is source of truth)
+    try {
+      await this.remoteProvider.deleteConversation(id);
+    } catch (error) {
       if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
         console.debug('[Hybrid] Backend unavailable (network error), deletion skipped on remote');
       } else {
         console.warn('[Hybrid] Error deleting from remote:', error);
       }
-      throw error; // Re-throw remote errors
-    });
+      // Don't throw - local deletion succeeded, that's what matters
+    }
 
-    await Promise.all([localPromise, remotePromise]);
+    // If local deletion failed, throw the error
+    if (localError) {
+      throw localError;
+    }
   }
 
   // ========== Snippets ==========
@@ -217,20 +228,31 @@ export class HybridProvider implements StorageProvider {
   }
 
   async deleteSnippet(id: number): Promise<void> {
-    const localPromise = this.localProvider.deleteSnippet(id).catch((error) => {
+    // Local deletion is critical - if it fails, we should throw
+    let localError: Error | null = null;
+    try {
+      await this.localProvider.deleteSnippet(id);
+    } catch (error) {
       console.warn('[Hybrid] Error deleting snippet from local cache:', error);
-    });
+      localError = error instanceof Error ? error : new Error(String(error));
+    }
 
-    const remotePromise = this.remoteProvider.deleteSnippet(id).catch((error) => {
+    // Remote deletion is best-effort - if it fails, we continue (local is source of truth)
+    try {
+      await this.remoteProvider.deleteSnippet(id);
+    } catch (error) {
       if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
         console.debug('[Hybrid] Backend unavailable (network error), snippet deletion skipped on remote');
       } else {
         console.warn('[Hybrid] Error deleting snippet from remote:', error);
       }
-      throw error;
-    });
+      // Don't throw - local deletion succeeded, that's what matters
+    }
 
-    await Promise.all([localPromise, remotePromise]);
+    // If local deletion failed, throw the error
+    if (localError) {
+      throw localError;
+    }
   }
 
   // ========== Collections ==========
@@ -295,20 +317,31 @@ export class HybridProvider implements StorageProvider {
   }
 
   async deleteCollection(id: number): Promise<void> {
-    const localPromise = this.localProvider.deleteCollection(id).catch((error) => {
+    // Local deletion is critical - if it fails, we should throw
+    let localError: Error | null = null;
+    try {
+      await this.localProvider.deleteCollection(id);
+    } catch (error) {
       console.warn('[Hybrid] Error deleting collection from local cache:', error);
-    });
+      localError = error instanceof Error ? error : new Error(String(error));
+    }
 
-    const remotePromise = this.remoteProvider.deleteCollection(id).catch((error) => {
+    // Remote deletion is best-effort - if it fails, we continue (local is source of truth)
+    try {
+      await this.remoteProvider.deleteCollection(id);
+    } catch (error) {
       if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
         console.debug('[Hybrid] Backend unavailable (network error), collection deletion skipped on remote');
       } else {
         console.warn('[Hybrid] Error deleting collection from remote:', error);
       }
-      throw error;
-    });
+      // Don't throw - local deletion succeeded, that's what matters
+    }
 
-    await Promise.all([localPromise, remotePromise]);
+    // If local deletion failed, throw the error
+    if (localError) {
+      throw localError;
+    }
   }
 
   // ========== Settings ==========

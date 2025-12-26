@@ -975,12 +975,45 @@ async function initSettingsUI() {
 
   // Backup & Restore
   const exportBackupBtn = document.getElementById('export-backup') as HTMLButtonElement | null;
+  const exportDataLink = document.getElementById('export-data-link') as HTMLAnchorElement | null;
   const importBackupBtn = document.getElementById('import-backup') as HTMLButtonElement | null;
   const backupFileInput = document.getElementById('backup-file-input') as HTMLInputElement | null;
   const backupStatus = document.getElementById('backup-status') as HTMLElement | null;
   const importBackupRemoteBtn = document.getElementById('import-backup-remote') as HTMLButtonElement | null;
 
-  exportBackupBtn?.addEventListener('click', async () => {
+  // Export function (shared by button and link)
+  const handleExport = async () => {
+    if (!backupStatus) return;
+    try {
+      backupStatus.textContent = 'Export en cours...';
+      backupStatus.style.color = '#444';
+      
+      // Get provider from service worker
+      const response = await chrome.runtime.sendMessage({ action: 'exportBackup' });
+      
+      if (response.error) {
+        backupStatus.textContent = `❌ Erreur: ${response.error}`;
+        backupStatus.style.color = '#d32f2f';
+      } else {
+        backupStatus.textContent = '✅ Backup exporté avec succès';
+        backupStatus.style.color = '#10b981';
+        setTimeout(() => {
+          if (backupStatus) backupStatus.textContent = '';
+        }, 3000);
+      }
+    } catch (error) {
+      if (backupStatus) {
+        backupStatus.textContent = `❌ Erreur: ${error instanceof Error ? error.message : String(error)}`;
+        backupStatus.style.color = '#d32f2f';
+      }
+    }
+  };
+
+  exportBackupBtn?.addEventListener('click', handleExport);
+  exportDataLink?.addEventListener('click', async (e) => {
+    e.preventDefault();
+    await handleExport();
+  });
     if (!backupStatus) return;
     try {
       backupStatus.textContent = 'Export en cours...';

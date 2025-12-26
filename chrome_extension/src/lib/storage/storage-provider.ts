@@ -16,13 +16,14 @@ export { HybridProvider } from './hybrid-provider';
  * Create storage provider based on settings
  * 
  * Three modes:
- * 1. IndexedDB alone: No backend_url configured
+ * 1. IndexedDB alone: storageMode === 'local' OR no backend_url configured
  * 2. PostgreSQL alone: backend_url + disable_local_cache = true
  * 3. Hybrid: backend_url + disable_local_cache = false (default)
  */
 export function createStorageProvider(settings: Settings): StorageProvider {
-  // Mode 1: IndexedDB alone (no backend_url)
-  if (!settings.backend_url) {
+  // Mode 1: IndexedDB alone (local mode OR no backend_url)
+  // If storageMode is 'local', always use IndexedDB regardless of backend_url
+  if (settings.storageMode === 'local' || !settings.backend_url) {
     return new IndexedDBProvider();
   }
   
