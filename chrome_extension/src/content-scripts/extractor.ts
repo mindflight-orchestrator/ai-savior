@@ -63,6 +63,17 @@ async function extractConversation(): Promise<any> {
       message: '//div[@data-message-author-role]',
       conversation: '//title',
     },
+    'www.perplexity.ai': {
+      title: 'documentTitle',
+      // Perplexity messages - look for content containers near copy buttons
+      message: '//div[contains(@id, "radix-") and contains(@id, "-content-thread")]//div[string-length(text()) > 20]',
+      conversation: '//title',
+    },
+    'perplexity.ai': {
+      title: 'documentTitle',
+      message: '//div[contains(@id, "radix-") and contains(@id, "-content-thread")]//div[string-length(text()) > 20]',
+      conversation: '//title',
+    },
     'www.kimi.com': {
       title: 'documentTitle',
       // Use special extraction for Kimi
