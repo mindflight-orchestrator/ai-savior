@@ -54,7 +54,7 @@ function hideAllTabContents() {
 
 function updateWindowSize(tabName: string | null) {
   const body = document.body;
-  if (tabName === 'search') {
+  if (tabName === 'search' || tabName === 'snippets') {
     body.classList.add('large-view');
   } else {
     body.classList.remove('large-view');
@@ -495,6 +495,11 @@ function updateTagsList(results: SearchResultItem[]) {
 let tagAutocompleteContainer: HTMLDivElement | null = null;
 let currentTagInput: HTMLInputElement | null = null;
 let selectedSuggestionIndex = -1;
+
+// Tag autocomplete functionality for SNIPPETS modal
+let snippetTagAutocompleteContainer: HTMLDivElement | null = null;
+let selectedSnippetSuggestionIndex = -1;
+let allSnippetTags: string[] = [];
 
 function initTagAutocomplete() {
   const tagsInput = document.getElementById('save-tags') as HTMLInputElement | null;
@@ -1704,14 +1709,28 @@ function updateSnippetTagsList(snippets: SnippetItem[]) {
 
   const allTags = new Set<string>();
   snippets.forEach((s) => {
-    if (s.tags) {
-      s.tags.forEach((tag) => allTags.add(tag));
+    if (s.tags && Array.isArray(s.tags)) {
+      s.tags.forEach((tag) => {
+        if (tag && typeof tag === 'string' && tag.trim()) {
+          allTags.add(tag.trim());
+        }
+      });
     }
   });
 
   tagsContainer.innerHTML = '';
+
+  if (allTags.size === 0) {
+    const empty = document.createElement('div');
+    empty.style.fontSize = '11px';
+    empty.style.color = '#999';
+    empty.textContent = 'Aucun tag';
+    tagsContainer.appendChild(empty);
+    return;
+  }
+
   Array.from(allTags)
-    .sort()
+    .sort((a, b) => a.localeCompare(b))
     .forEach((tag) => {
       const label = document.createElement('label');
       label.style.display = 'flex';
@@ -1720,25 +1739,262 @@ function updateSnippetTagsList(snippets: SnippetItem[]) {
       label.style.fontSize = '12px';
       label.style.cursor = 'pointer';
       label.style.marginBottom = '4px';
+      label.style.padding = '4px 0';
 
       const checkbox = document.createElement('input');
       checkbox.type = 'checkbox';
       checkbox.value = tag;
       checkbox.checked = selectedSnippetTags.has(tag);
+      checkbox.style.margin = '0';
+      checkbox.style.cursor = 'pointer';
+      
       checkbox.addEventListener('change', () => {
         if (checkbox.checked) {
           selectedSnippetTags.add(tag);
+          label.style.backgroundColor = '#e3f2fd';
+          label.style.color = '#1976d2';
         } else {
           selectedSnippetTags.delete(tag);
+          label.style.backgroundColor = '';
+          label.style.color = '';
         }
         loadSnippets();
       });
+
+      // Update visual state based on selection
+      if (checkbox.checked) {
+        label.style.backgroundColor = '#e3f2fd';
+        label.style.color = '#1976d2';
+      }
 
       const text = document.createTextNode(tag);
       label.appendChild(checkbox);
       label.appendChild(text);
       tagsContainer.appendChild(label);
     });
+}
+
+// Initialize snippet tag autocomplete
+let snippetTagAutocompleteInitialized = false;
+
+async function initSnippetTagAutocomplete() {
+  const tagsInput = document.getElementById('snippet-tags') as HTMLInputElement | null;
+  if (!tagsInput) return;
+
+  // Create autocomplete container if it doesn't exist
+  if (!snippetTagAutocompleteContainer) {
+    snippetTagAutocompleteContainer = document.createElement('div');
+    snippetTagAutocompleteContainer.style.position = 'absolute';
+    snippetTagAutocompleteContainer.style.background = 'white';
+    snippetTagAutocompleteContainer.style.border = '1px solid #ddd';
+    snippetTagAutocompleteContainer.style.borderRadius = '6px';
+    snippetTagAutocompleteContainer.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
+    snippetTagAutocompleteContainer.style.maxHeight = '200px';
+    snippetTagAutocompleteContainer.style.overflowY = 'auto';
+    snippetTagAutocompleteContainer.style.zIndex = '10001'; // Higher than modal
+    snippetTagAutocompleteContainer.style.display = 'none';
+    document.body.appendChild(snippetTagAutocompleteContainer);
+  }
+
+  // Load all tags from snippets and conversations
+  await loadAllTagsForSnippets();
+
+  // Only add listeners once to avoid duplicates
+  if (!snippetTagAutocompleteInitialized) {
+    tagsInput.addEventListener('input', handleSnippetTagInput);
+    tagsInput.addEventListener('keydown', handleSnippetTagKeydown);
+    tagsInput.addEventListener('blur', () => {
+      setTimeout(() => {
+        if (snippetTagAutocompleteContainer) {
+          snippetTagAutocompleteContainer.style.display = 'none';
+        }
+      }, 150);
+    });
+    tagsInput.addEventListener('focus', () => {
+      if (tagsInput.value.trim()) {
+        showSnippetTagSuggestions(tagsInput.value.trim());
+      }
+    });
+    snippetTagAutocompleteInitialized = true;
+  }
+}
+
+async function loadAllTagsForSnippets() {
+  const allTags = new Set<string>();
+
+  // Load tags from conversations
+  try {
+    const convResponse = await chrome.runtime.sendMessage({ action: 'searchConversations', query: '', filters: {} });
+    if (convResponse?.results) {
+      convResponse.results.forEach((conv: any) => {
+        if (Array.isArray(conv.tags)) {
+          conv.tags.forEach((tag: string) => allTags.add(tag));
+        }
+      });
+    }
+  } catch (error) {
+    console.error('Error loading conversation tags:', error);
+  }
+
+  // Load tags from snippets
+  try {
+    const snippetResponse = await chrome.runtime.sendMessage({ action: 'listSnippets', filters: {} });
+    if (snippetResponse?.snippets) {
+      snippetResponse.snippets.forEach((snippet: any) => {
+        if (Array.isArray(snippet.tags)) {
+          snippet.tags.forEach((tag: string) => allTags.add(tag));
+        }
+      });
+    }
+  } catch (error) {
+    console.error('Error loading snippet tags:', error);
+  }
+
+  allSnippetTags = Array.from(allTags).sort((a, b) => a.localeCompare(b));
+}
+
+function handleSnippetTagInput(e: Event) {
+  const input = e.target as HTMLInputElement;
+  const value = input.value;
+  const lastCommaIndex = value.lastIndexOf(',');
+  const currentTag = lastCommaIndex === -1 ? value : value.substring(lastCommaIndex + 1);
+  const trimmedTag = currentTag.trim();
+
+  if (trimmedTag.length > 0) {
+    showSnippetTagSuggestions(trimmedTag);
+  } else {
+    hideSnippetTagSuggestions();
+  }
+}
+
+function handleSnippetTagKeydown(e: KeyboardEvent) {
+  if (!snippetTagAutocompleteContainer || snippetTagAutocompleteContainer.style.display === 'none') return;
+
+  const suggestions = snippetTagAutocompleteContainer.querySelectorAll('.tag-suggestion');
+
+  switch (e.key) {
+    case 'ArrowDown':
+      e.preventDefault();
+      selectedSnippetSuggestionIndex = Math.min(selectedSnippetSuggestionIndex + 1, suggestions.length - 1);
+      updateSnippetSuggestionSelection(suggestions);
+      break;
+    case 'ArrowUp':
+      e.preventDefault();
+      selectedSnippetSuggestionIndex = Math.max(selectedSnippetSuggestionIndex - 1, -1);
+      updateSnippetSuggestionSelection(suggestions);
+      break;
+    case 'Enter':
+    case 'Tab':
+      e.preventDefault();
+      if (selectedSnippetSuggestionIndex >= 0 && suggestions[selectedSnippetSuggestionIndex]) {
+        selectSnippetTagSuggestion(suggestions[selectedSnippetSuggestionIndex] as HTMLElement);
+      }
+      break;
+    case 'Escape':
+      hideSnippetTagSuggestions();
+      selectedSnippetSuggestionIndex = -1;
+      break;
+  }
+}
+
+function showSnippetTagSuggestions(query: string) {
+  if (!snippetTagAutocompleteContainer) return;
+
+  // Filter available tags
+  const filteredTags = allSnippetTags.filter(tag =>
+    tag.toLowerCase().includes(query.toLowerCase())
+  ).slice(0, 10);
+
+  if (filteredTags.length === 0) {
+    hideSnippetTagSuggestions();
+    return;
+  }
+
+  // Update position relative to the modal
+  const tagsInput = document.getElementById('snippet-tags') as HTMLInputElement | null;
+  const modal = document.getElementById('snippet-modal');
+  if (tagsInput && modal) {
+    const inputRect = tagsInput.getBoundingClientRect();
+    const modalRect = modal.getBoundingClientRect();
+    // Position relative to viewport (modal is fixed)
+    snippetTagAutocompleteContainer.style.top = (inputRect.bottom) + 'px';
+    snippetTagAutocompleteContainer.style.left = (inputRect.left) + 'px';
+    snippetTagAutocompleteContainer.style.width = inputRect.width + 'px';
+  }
+
+  // Clear previous suggestions
+  snippetTagAutocompleteContainer.innerHTML = '';
+  selectedSnippetSuggestionIndex = -1;
+
+  // Add new suggestions
+  filteredTags.forEach((tag, index) => {
+    if (!snippetTagAutocompleteContainer) return;
+
+    const suggestion = document.createElement('div');
+    suggestion.className = 'tag-suggestion';
+    suggestion.textContent = tag;
+    suggestion.style.padding = '8px 12px';
+    suggestion.style.cursor = 'pointer';
+    suggestion.style.borderBottom = index < filteredTags.length - 1 ? '1px solid #f0f0f0' : 'none';
+
+    suggestion.addEventListener('mouseenter', () => {
+      selectedSnippetSuggestionIndex = index;
+      if (snippetTagAutocompleteContainer) {
+        updateSnippetSuggestionSelection(snippetTagAutocompleteContainer.querySelectorAll('.tag-suggestion'));
+      }
+    });
+
+    suggestion.addEventListener('click', () => {
+      selectSnippetTagSuggestion(suggestion);
+    });
+
+    snippetTagAutocompleteContainer.appendChild(suggestion);
+  });
+
+  snippetTagAutocompleteContainer.style.display = 'block';
+}
+
+function hideSnippetTagSuggestions() {
+  if (snippetTagAutocompleteContainer) {
+    snippetTagAutocompleteContainer.style.display = 'none';
+    selectedSnippetSuggestionIndex = -1;
+  }
+}
+
+function updateSnippetSuggestionSelection(suggestions: NodeListOf<Element>) {
+  if (!suggestions) return;
+
+  suggestions.forEach((suggestion, index) => {
+    const element = suggestion as HTMLElement;
+    if (index === selectedSnippetSuggestionIndex) {
+      element.style.backgroundColor = '#e3f2fd';
+      element.style.color = '#1976d2';
+    } else {
+      element.style.backgroundColor = '';
+      element.style.color = '';
+    }
+  });
+}
+
+function selectSnippetTagSuggestion(suggestion: HTMLElement) {
+  const tagValue = suggestion.textContent || '';
+  const tagsInput = document.getElementById('snippet-tags') as HTMLInputElement | null;
+
+  if (!tagsInput) return;
+
+  const currentValue = tagsInput.value;
+  const lastCommaIndex = currentValue.lastIndexOf(',');
+  const prefix = lastCommaIndex === -1 ? '' : currentValue.substring(0, lastCommaIndex + 1) + ' ';
+  const newValue = prefix + tagValue + ', ';
+
+  tagsInput.value = newValue;
+  tagsInput.focus();
+
+  // Position cursor at end
+  const len = newValue.length;
+  tagsInput.setSelectionRange(len, len);
+
+  hideSnippetTagSuggestions();
 }
 
 function showSnippetModal(snippet?: SnippetItem) {
@@ -1775,6 +2031,11 @@ function showSnippetModal(snippet?: SnippetItem) {
   if (resultEl) resultEl.textContent = '';
 
   modal.style.display = 'flex';
+  
+  // Initialize tag autocomplete when modal opens (with small delay to ensure modal is rendered)
+  setTimeout(() => {
+    initSnippetTagAutocomplete();
+  }, 100);
 }
 
 function closeSnippetModal() {
