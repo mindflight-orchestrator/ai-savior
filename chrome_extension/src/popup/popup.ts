@@ -1190,19 +1190,40 @@ async function initSettingsUI() {
       backupStatus.textContent = 'Export en cours...';
       backupStatus.style.color = '#444';
       
-      // Get provider from service worker
+      // Get backup data from service worker
       const response = await chrome.runtime.sendMessage({ action: 'exportBackup' });
       
       if (response.error) {
         backupStatus.textContent = `❌ Erreur: ${response.error}`;
         backupStatus.style.color = '#d32f2f';
-      } else {
-        backupStatus.textContent = '✅ Backup exporté avec succès';
-        backupStatus.style.color = '#10b981';
-        setTimeout(() => {
-          if (backupStatus) backupStatus.textContent = '';
-        }, 3000);
+        return;
       }
+
+      if (!response.success || !response.data) {
+        backupStatus.textContent = `❌ Erreur: Données de backup non disponibles`;
+        backupStatus.style.color = '#d32f2f';
+        return;
+      }
+
+      // Create blob and download in popup context (where URL.createObjectURL is available)
+      const json = JSON.stringify(response.data, null, 2);
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `ai-saver-backup-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      
+      URL.revokeObjectURL(url);
+
+      backupStatus.textContent = '✅ Backup exporté avec succès';
+      backupStatus.style.color = '#10b981';
+      setTimeout(() => {
+        if (backupStatus) backupStatus.textContent = '';
+      }, 3000);
     } catch (error) {
       if (backupStatus) {
         backupStatus.textContent = `❌ Erreur: ${error instanceof Error ? error.message : String(error)}`;
@@ -1347,6 +1368,66 @@ async function initSettingsUI() {
 
     document.body.appendChild(remoteFileInput);
     remoteFileInput.click();
+  });
+
+  // Clear database button
+  const clearDatabaseBtn = document.getElementById('clear-database') as HTMLButtonElement | null;
+  clearDatabaseBtn?.addEventListener('click', async () => {
+    if (!backupStatus) return;
+
+    // Double confirmation for destructive action
+    const confirmed = confirm(
+      '⚠️ ATTENTION : Cette action est irréversible !\n\n' +
+      'Vous allez effacer TOUTES les données de la base IndexedDB :\n' +
+      '- Toutes les conversations\n' +
+      '- Tous les snippets\n' +
+      '- Toutes les collections\n' +
+      '- La file de synchronisation\n\n' +
+      'Les paramètres seront conservés.\n\n' +
+      'Êtes-vous sûr de vouloir continuer ?'
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    // Second confirmation
+    const confirmed2 = confirm(
+      'Dernière confirmation :\n\n' +
+      'Toutes vos données locales seront définitivement supprimées.\n\n' +
+      'Continuer ?'
+    );
+
+    if (!confirmed2) {
+      return;
+    }
+
+    try {
+      backupStatus.textContent = 'Effacement en cours...';
+      backupStatus.style.color = '#444';
+
+      const response = await chrome.runtime.sendMessage({ action: 'clearDatabase' });
+
+      if (response.error) {
+        backupStatus.textContent = `❌ Erreur: ${response.error}`;
+        backupStatus.style.color = '#d32f2f';
+      } else {
+        backupStatus.textContent = '✅ Base de données effacée avec succès';
+        backupStatus.style.color = '#10b981';
+        
+        // Refresh the UI to reflect empty state
+        setTimeout(() => {
+          if (backupStatus) backupStatus.textContent = '';
+          // Refresh tab state if on save tab
+          refreshTabState();
+        }, 3000);
+      }
+    } catch (error) {
+      if (backupStatus) {
+        backupStatus.textContent = `❌ Erreur: ${error instanceof Error ? error.message : String(error)}`;
+        backupStatus.style.color = '#d32f2f';
+      }
+    }
   });
 }
 

@@ -371,6 +371,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       handleImportBackupRemote(message.backup, sendResponse);
       return true;
 
+    case 'clearDatabase':
+      handleClearDatabase(sendResponse);
+      return true;
+
     default:
       console.warn('Unknown action:', message.action);
       sendResponse({ error: 'Unknown action' });
@@ -756,19 +760,18 @@ async function handleExportBackup(sendResponse: (response: any) => void) {
     const provider = await getProvider();
     
     // Check if provider supports exportBackup
+    let backupData: any;
     if ('exportBackup' in provider && typeof provider.exportBackup === 'function') {
-      await (provider as any).downloadBackup();
-      sendResponse({ success: true });
-    } else if ('downloadBackup' in provider && typeof provider.downloadBackup === 'function') {
-      await (provider as any).downloadBackup();
-      sendResponse({ success: true });
+      backupData = await (provider as any).exportBackup();
     } else {
       // Fallback: use IndexedDBProvider directly
       const { IndexedDBProvider } = await import('../lib/storage/indexeddb-provider');
       const idbProvider = new IndexedDBProvider();
-      await idbProvider.downloadBackup();
-      sendResponse({ success: true });
+      backupData = await idbProvider.exportBackup();
     }
+    
+    // Return backup data to popup (popup will handle blob creation and download)
+    sendResponse({ success: true, data: backupData });
   } catch (error) {
     console.error('Error exporting backup:', error);
     sendResponse({ error: error instanceof Error ? error.message : String(error) });
@@ -820,6 +823,34 @@ async function handleImportBackupRemote(backup: any, sendResponse: (response: an
     }
   } catch (error) {
     console.error('Error importing backup to remote:', error);
+    sendResponse({ error: error instanceof Error ? error.message : String(error) });
+  }
+}
+
+// Handle clearDatabase request
+async function handleClearDatabase(sendResponse: (response: any) => void) {
+  try {
+    // Only allow clearing if using IndexedDB (local mode or hybrid mode)
+    const settings = await chrome.storage.local.get(['storageMode']);
+    const storageMode = settings.storageMode || 'local';
+    
+    if (storageMode === 'cloud') {
+      sendResponse({ error: 'Effacement de la base de données uniquement disponible en mode local' });
+      return;
+    }
+    
+    // Use IndexedDBProvider directly to clear database
+    const { IndexedDBProvider } = await import('../lib/storage/indexeddb-provider');
+    const idbProvider = new IndexedDBProvider();
+    await idbProvider.clearDatabase();
+    
+    // Invalidate provider cache to force reload
+    providerCache = null;
+    providerSettingsHash = null;
+    
+    sendResponse({ success: true });
+  } catch (error) {
+    console.error('Error clearing database:', error);
     sendResponse({ error: error instanceof Error ? error.message : String(error) });
   }
 }
