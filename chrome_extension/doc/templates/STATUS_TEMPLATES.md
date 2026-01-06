@@ -52,17 +52,16 @@ Ce document liste tous les domaines supportés par l'extension et leur statut co
 
 ---
 
-### ❌ Claude (Non configuré)
+### ✅ Claude (Complètement configuré)
 
 | Domaine | Extractor | Template | Settings | URL Detector |
 |---------|-----------|----------|----------|--------------|
-| `claude.ai` | ❌ | ❌ | ✅ | ✅ |
+| `claude.ai` | ✅ | ✅ | ✅ | ✅ |
 
-**Status** : ❌ **NÉCESSITE CONFIGURATION**
-**Action requise** : 
-1. Ajouter configuration XPath dans `extractor.ts`
-2. Créer template HTML `claude.html` si nécessaire
-3. Tester l'extraction
+**Status** : ✅ Fonctionnel - Template disponible et extraction configurée
+**Template** : `claude.html` existe
+**XPath** : Utilise le conteneur `main-content` avec extraction des messages utilisateur et réponses Claude
+**Note** : Extraction basée sur `data-testid="user-message"` et `font-claude-response` classes
 
 ---
 
@@ -142,12 +141,11 @@ Ce document liste tous les domaines supportés par l'extension et leur statut co
 
 Ces domaines sont dans les settings par défaut mais n'ont pas de configuration d'extraction :
 
-1. **Claude** (`claude.ai`)
-2. **Mistral** (`chat.mistral.ai`)
-3. **DeepSeek** (`chat.deepseek.com`)
-4. **Qwen** (`chat.qwen.ai`)
-5. **Manus** (`manus.im`)
-6. **Grok** (`grok.com`)
+1. **Mistral** (`chat.mistral.ai`)
+2. **DeepSeek** (`chat.deepseek.com`)
+3. **Qwen** (`chat.qwen.ai`)
+4. **Manus** (`manus.im`)
+5. **Grok** (`grok.com`)
 
 ### 🟡 Priorité Moyenne - Domaines partiellement configurés
 

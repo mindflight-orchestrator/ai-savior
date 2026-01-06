@@ -86,6 +86,13 @@ async function extractConversation(): Promise<any> {
       message: '__kimi_special__',
       conversation: '//title',
     },
+    'claude.ai': {
+      title: 'documentTitle',
+      // Claude messages - extract from main-content container (user-provided XPath)
+      // Extract all message elements from the container: user messages and Claude responses
+      message: '//*[@id="main-content"]/div/div[1]/div/div/div/div[1]//div[@data-testid="user-message"] | //*[@id="main-content"]/div/div[1]/div/div/div/div[1]//div[contains(@class, "font-claude-response")]',
+      conversation: '//title',
+    },
   };
 
   try {
