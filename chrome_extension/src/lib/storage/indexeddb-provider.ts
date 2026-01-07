@@ -599,28 +599,4 @@ export class IndexedDBProvider implements StorageProvider {
 
     return result;
   }
-
-  /**
-   * Clear all data from IndexedDB (except settings)
-   * This will delete all conversations, snippets, collections, and sync_queue entries
-   */
-  async clearDatabase(): Promise<void> {
-    const db = await this.getDB();
-    
-    // Clear all object stores except settings
-    const storesToClear = ['conversations', 'snippets', 'collections', 'sync_queue'];
-    
-    const promises = storesToClear.map((storeName) => {
-      return new Promise<void>((resolve, reject) => {
-        const tx = db.transaction(storeName, 'readwrite');
-        const store = tx.objectStore(storeName);
-        const request = store.clear();
-        
-        request.onsuccess = () => resolve();
-        request.onerror = () => reject(request.error);
-      });
-    });
-    
-    await Promise.all(promises);
-  }
 }

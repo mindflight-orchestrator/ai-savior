@@ -54,7 +54,7 @@ function hideAllTabContents() {
 
 function updateWindowSize(tabName: string | null) {
   const body = document.body;
-  if (tabName === 'search' || tabName === 'snippets') {
+  if (tabName === 'search') {
     body.classList.add('large-view');
   } else {
     body.classList.remove('large-view');
@@ -380,7 +380,6 @@ function renderSearchResults(items: SearchResultItem[]) {
 
 let searchDebounce: number | undefined;
 let selectedTags: Set<string> = new Set<string>();
-let allAvailableTags: string[] = [];
 
 async function runSearch(query: string, tagFilter?: string[]) {
   setSearchStatus('Recherche…');
@@ -419,9 +418,6 @@ function updateTagsList(results: SearchResultItem[]) {
 
   // Sort tags alphabetically
   const sortedTags = Array.from(allTags).sort((a, b) => a.localeCompare(b));
-
-  // Update global available tags list
-  allAvailableTags = sortedTags;
 
   // Clear and rebuild tags list
   tagsContainer.innerHTML = '';
@@ -489,203 +485,6 @@ function updateTagsList(results: SearchResultItem[]) {
     tagItem.appendChild(label);
     tagsContainer.appendChild(tagItem);
   });
-}
-
-// Tag autocomplete functionality for SAVE tab
-let tagAutocompleteContainer: HTMLDivElement | null = null;
-let currentTagInput: HTMLInputElement | null = null;
-let selectedSuggestionIndex = -1;
-
-// Tag autocomplete functionality for SNIPPETS modal
-let snippetTagAutocompleteContainer: HTMLDivElement | null = null;
-let selectedSnippetSuggestionIndex = -1;
-let allSnippetTags: string[] = [];
-
-function initTagAutocomplete() {
-  const tagsInput = document.getElementById('save-tags') as HTMLInputElement | null;
-  if (!tagsInput) return;
-
-  // Create autocomplete container
-  tagAutocompleteContainer = document.createElement('div');
-  tagAutocompleteContainer.style.position = 'absolute';
-  tagAutocompleteContainer.style.background = 'white';
-  tagAutocompleteContainer.style.border = '1px solid #ddd';
-  tagAutocompleteContainer.style.borderRadius = '6px';
-  tagAutocompleteContainer.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
-  tagAutocompleteContainer.style.maxHeight = '200px';
-  tagAutocompleteContainer.style.overflowY = 'auto';
-  tagAutocompleteContainer.style.zIndex = '1000';
-  tagAutocompleteContainer.style.display = 'none';
-
-  document.body.appendChild(tagAutocompleteContainer);
-
-  // Add event listeners
-  tagsInput.addEventListener('input', handleTagInput);
-  tagsInput.addEventListener('keydown', handleTagKeydown);
-  tagsInput.addEventListener('blur', () => {
-    // Delay hiding to allow click on suggestions
-    setTimeout(() => {
-      if (tagAutocompleteContainer) {
-        tagAutocompleteContainer.style.display = 'none';
-      }
-    }, 150);
-  });
-  tagsInput.addEventListener('focus', () => {
-    const input = tagsInput;
-    if (input.value.trim()) {
-      showTagSuggestions(input.value.trim());
-    }
-  });
-
-  // Update container position on resize
-  window.addEventListener('resize', updateAutocompletePosition);
-}
-
-function updateAutocompletePosition() {
-  const tagsInput = document.getElementById('save-tags') as HTMLInputElement | null;
-  if (!tagsInput || !tagAutocompleteContainer) return;
-
-  const inputRect = tagsInput.getBoundingClientRect();
-  tagAutocompleteContainer.style.top = (inputRect.bottom + window.scrollY + 2) + 'px';
-  tagAutocompleteContainer.style.left = (inputRect.left + window.scrollX) + 'px';
-  tagAutocompleteContainer.style.width = inputRect.width + 'px';
-}
-
-function handleTagInput(e: Event) {
-  const input = e.target as HTMLInputElement;
-  const value = input.value;
-  const lastCommaIndex = value.lastIndexOf(',');
-  const currentTag = lastCommaIndex === -1 ? value : value.substring(lastCommaIndex + 1);
-  const trimmedTag = currentTag.trim();
-
-  if (trimmedTag.length > 0) {
-    showTagSuggestions(trimmedTag);
-  } else {
-    hideTagSuggestions();
-  }
-}
-
-function handleTagKeydown(e: KeyboardEvent) {
-  if (!tagAutocompleteContainer || tagAutocompleteContainer.style.display === 'none') return;
-
-  const suggestions = tagAutocompleteContainer.querySelectorAll('.tag-suggestion');
-
-  switch (e.key) {
-    case 'ArrowDown':
-      e.preventDefault();
-      selectedSuggestionIndex = Math.min(selectedSuggestionIndex + 1, suggestions.length - 1);
-      updateSuggestionSelection(suggestions);
-      break;
-    case 'ArrowUp':
-      e.preventDefault();
-      selectedSuggestionIndex = Math.max(selectedSuggestionIndex - 1, -1);
-      updateSuggestionSelection(suggestions);
-      break;
-    case 'Enter':
-    case 'Tab':
-      e.preventDefault();
-      if (selectedSuggestionIndex >= 0 && suggestions[selectedSuggestionIndex]) {
-        selectTagSuggestion(suggestions[selectedSuggestionIndex] as HTMLElement);
-      }
-      break;
-    case 'Escape':
-      hideTagSuggestions();
-      selectedSuggestionIndex = -1;
-      break;
-  }
-}
-
-function showTagSuggestions(query: string) {
-  if (!tagAutocompleteContainer) return;
-
-  // Filter available tags
-  const filteredTags = allAvailableTags.filter(tag =>
-    tag.toLowerCase().includes(query.toLowerCase())
-  ).slice(0, 10); // Limit to 10 suggestions
-
-  if (filteredTags.length === 0) {
-    hideTagSuggestions();
-    return;
-  }
-
-  // Update position before showing
-  updateAutocompletePosition();
-
-  // Clear previous suggestions
-  tagAutocompleteContainer.innerHTML = '';
-  selectedSuggestionIndex = -1;
-
-  // Add new suggestions
-  filteredTags.forEach((tag, index) => {
-    if (!tagAutocompleteContainer) return;
-
-    const suggestion = document.createElement('div');
-    suggestion.className = 'tag-suggestion';
-    suggestion.textContent = tag;
-    suggestion.style.padding = '8px 12px';
-    suggestion.style.cursor = 'pointer';
-    suggestion.style.borderBottom = index < filteredTags.length - 1 ? '1px solid #f0f0f0' : 'none';
-
-    suggestion.addEventListener('mouseenter', () => {
-      selectedSuggestionIndex = index;
-      if (tagAutocompleteContainer) {
-        updateSuggestionSelection(tagAutocompleteContainer.querySelectorAll('.tag-suggestion'));
-      }
-    });
-
-    suggestion.addEventListener('click', () => {
-      selectTagSuggestion(suggestion);
-    });
-
-    tagAutocompleteContainer.appendChild(suggestion);
-  });
-
-  if (tagAutocompleteContainer) {
-    tagAutocompleteContainer.style.display = 'block';
-  }
-}
-
-function hideTagSuggestions() {
-  if (tagAutocompleteContainer) {
-    tagAutocompleteContainer.style.display = 'none';
-    selectedSuggestionIndex = -1;
-  }
-}
-
-function updateSuggestionSelection(suggestions: NodeListOf<Element>) {
-  if (!suggestions) return;
-
-  suggestions.forEach((suggestion, index) => {
-    const element = suggestion as HTMLElement;
-    if (index === selectedSuggestionIndex) {
-      element.style.backgroundColor = '#e3f2fd';
-      element.style.color = '#1976d2';
-    } else {
-      element.style.backgroundColor = '';
-      element.style.color = '';
-    }
-  });
-}
-
-function selectTagSuggestion(suggestion: HTMLElement) {
-  const tagValue = suggestion.textContent || '';
-  const tagsInput = document.getElementById('save-tags') as HTMLInputElement | null;
-
-  if (!tagsInput) return;
-
-  const currentValue = tagsInput.value;
-  const lastCommaIndex = currentValue.lastIndexOf(',');
-  const prefix = lastCommaIndex === -1 ? '' : currentValue.substring(0, lastCommaIndex + 1) + ' ';
-  const newValue = prefix + tagValue + ', ';
-
-  tagsInput.value = newValue;
-  tagsInput.focus();
-
-  // Position cursor at end
-  const len = newValue.length;
-  tagsInput.setSelectionRange(len, len);
-
-  hideTagSuggestions();
 }
 
 function initSearchUI() {
@@ -961,12 +760,6 @@ refreshTabState();
 // Search init (safe if tab not visible)
 initSearchUI();
 
-// Tag autocomplete init
-initTagAutocomplete();
-
-// Load available tags for autocomplete (search with empty query to get all tags)
-runSearch('', []);
-
 async function loadSettings(): Promise<PopupSettings> {
   const raw = await chrome.storage.local.get([
     'storageMode',
@@ -1195,40 +988,19 @@ async function initSettingsUI() {
       backupStatus.textContent = 'Export en cours...';
       backupStatus.style.color = '#444';
       
-      // Get backup data from service worker
+      // Get provider from service worker
       const response = await chrome.runtime.sendMessage({ action: 'exportBackup' });
       
       if (response.error) {
         backupStatus.textContent = `❌ Erreur: ${response.error}`;
         backupStatus.style.color = '#d32f2f';
-        return;
+      } else {
+        backupStatus.textContent = '✅ Backup exporté avec succès';
+        backupStatus.style.color = '#10b981';
+        setTimeout(() => {
+          if (backupStatus) backupStatus.textContent = '';
+        }, 3000);
       }
-
-      if (!response.success || !response.data) {
-        backupStatus.textContent = `❌ Erreur: Données de backup non disponibles`;
-        backupStatus.style.color = '#d32f2f';
-        return;
-      }
-
-      // Create blob and download in popup context (where URL.createObjectURL is available)
-      const json = JSON.stringify(response.data, null, 2);
-      const blob = new Blob([json], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `ai-saver-backup-${new Date().toISOString().split('T')[0]}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      
-      URL.revokeObjectURL(url);
-
-      backupStatus.textContent = '✅ Backup exporté avec succès';
-      backupStatus.style.color = '#10b981';
-      setTimeout(() => {
-        if (backupStatus) backupStatus.textContent = '';
-      }, 3000);
     } catch (error) {
       if (backupStatus) {
         backupStatus.textContent = `❌ Erreur: ${error instanceof Error ? error.message : String(error)}`;
@@ -1241,6 +1013,31 @@ async function initSettingsUI() {
   exportDataLink?.addEventListener('click', async (e) => {
     e.preventDefault();
     await handleExport();
+  });
+    if (!backupStatus) return;
+    try {
+      backupStatus.textContent = 'Export en cours...';
+      backupStatus.style.color = '#444';
+      
+      // Get provider from service worker
+      const response = await chrome.runtime.sendMessage({ action: 'exportBackup' });
+      
+      if (response.error) {
+        backupStatus.textContent = `❌ Erreur: ${response.error}`;
+        backupStatus.style.color = '#d32f2f';
+      } else {
+        backupStatus.textContent = '✅ Backup exporté avec succès';
+        backupStatus.style.color = '#10b981';
+        setTimeout(() => {
+          if (backupStatus) backupStatus.textContent = '';
+        }, 3000);
+      }
+    } catch (error) {
+      if (backupStatus) {
+        backupStatus.textContent = `❌ Erreur: ${error instanceof Error ? error.message : String(error)}`;
+        backupStatus.style.color = '#d32f2f';
+      }
+    }
   });
 
   importBackupBtn?.addEventListener('click', () => {
@@ -1373,66 +1170,6 @@ async function initSettingsUI() {
 
     document.body.appendChild(remoteFileInput);
     remoteFileInput.click();
-  });
-
-  // Clear database button
-  const clearDatabaseBtn = document.getElementById('clear-database') as HTMLButtonElement | null;
-  clearDatabaseBtn?.addEventListener('click', async () => {
-    if (!backupStatus) return;
-
-    // Double confirmation for destructive action
-    const confirmed = confirm(
-      '⚠️ ATTENTION : Cette action est irréversible !\n\n' +
-      'Vous allez effacer TOUTES les données de la base IndexedDB :\n' +
-      '- Toutes les conversations\n' +
-      '- Tous les snippets\n' +
-      '- Toutes les collections\n' +
-      '- La file de synchronisation\n\n' +
-      'Les paramètres seront conservés.\n\n' +
-      'Êtes-vous sûr de vouloir continuer ?'
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
-    // Second confirmation
-    const confirmed2 = confirm(
-      'Dernière confirmation :\n\n' +
-      'Toutes vos données locales seront définitivement supprimées.\n\n' +
-      'Continuer ?'
-    );
-
-    if (!confirmed2) {
-      return;
-    }
-
-    try {
-      backupStatus.textContent = 'Effacement en cours...';
-      backupStatus.style.color = '#444';
-
-      const response = await chrome.runtime.sendMessage({ action: 'clearDatabase' });
-
-      if (response.error) {
-        backupStatus.textContent = `❌ Erreur: ${response.error}`;
-        backupStatus.style.color = '#d32f2f';
-      } else {
-        backupStatus.textContent = '✅ Base de données effacée avec succès';
-        backupStatus.style.color = '#10b981';
-        
-        // Refresh the UI to reflect empty state
-        setTimeout(() => {
-          if (backupStatus) backupStatus.textContent = '';
-          // Refresh tab state if on save tab
-          refreshTabState();
-        }, 3000);
-      }
-    } catch (error) {
-      if (backupStatus) {
-        backupStatus.textContent = `❌ Erreur: ${error instanceof Error ? error.message : String(error)}`;
-        backupStatus.style.color = '#d32f2f';
-      }
-    }
   });
 }
 
@@ -1709,28 +1446,14 @@ function updateSnippetTagsList(snippets: SnippetItem[]) {
 
   const allTags = new Set<string>();
   snippets.forEach((s) => {
-    if (s.tags && Array.isArray(s.tags)) {
-      s.tags.forEach((tag) => {
-        if (tag && typeof tag === 'string' && tag.trim()) {
-          allTags.add(tag.trim());
-        }
-      });
+    if (s.tags) {
+      s.tags.forEach((tag) => allTags.add(tag));
     }
   });
 
   tagsContainer.innerHTML = '';
-
-  if (allTags.size === 0) {
-    const empty = document.createElement('div');
-    empty.style.fontSize = '11px';
-    empty.style.color = '#999';
-    empty.textContent = 'Aucun tag';
-    tagsContainer.appendChild(empty);
-    return;
-  }
-
   Array.from(allTags)
-    .sort((a, b) => a.localeCompare(b))
+    .sort()
     .forEach((tag) => {
       const label = document.createElement('label');
       label.style.display = 'flex';
@@ -1739,262 +1462,25 @@ function updateSnippetTagsList(snippets: SnippetItem[]) {
       label.style.fontSize = '12px';
       label.style.cursor = 'pointer';
       label.style.marginBottom = '4px';
-      label.style.padding = '4px 0';
 
       const checkbox = document.createElement('input');
       checkbox.type = 'checkbox';
       checkbox.value = tag;
       checkbox.checked = selectedSnippetTags.has(tag);
-      checkbox.style.margin = '0';
-      checkbox.style.cursor = 'pointer';
-      
       checkbox.addEventListener('change', () => {
         if (checkbox.checked) {
           selectedSnippetTags.add(tag);
-          label.style.backgroundColor = '#e3f2fd';
-          label.style.color = '#1976d2';
         } else {
           selectedSnippetTags.delete(tag);
-          label.style.backgroundColor = '';
-          label.style.color = '';
         }
         loadSnippets();
       });
-
-      // Update visual state based on selection
-      if (checkbox.checked) {
-        label.style.backgroundColor = '#e3f2fd';
-        label.style.color = '#1976d2';
-      }
 
       const text = document.createTextNode(tag);
       label.appendChild(checkbox);
       label.appendChild(text);
       tagsContainer.appendChild(label);
     });
-}
-
-// Initialize snippet tag autocomplete
-let snippetTagAutocompleteInitialized = false;
-
-async function initSnippetTagAutocomplete() {
-  const tagsInput = document.getElementById('snippet-tags') as HTMLInputElement | null;
-  if (!tagsInput) return;
-
-  // Create autocomplete container if it doesn't exist
-  if (!snippetTagAutocompleteContainer) {
-    snippetTagAutocompleteContainer = document.createElement('div');
-    snippetTagAutocompleteContainer.style.position = 'absolute';
-    snippetTagAutocompleteContainer.style.background = 'white';
-    snippetTagAutocompleteContainer.style.border = '1px solid #ddd';
-    snippetTagAutocompleteContainer.style.borderRadius = '6px';
-    snippetTagAutocompleteContainer.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
-    snippetTagAutocompleteContainer.style.maxHeight = '200px';
-    snippetTagAutocompleteContainer.style.overflowY = 'auto';
-    snippetTagAutocompleteContainer.style.zIndex = '10001'; // Higher than modal
-    snippetTagAutocompleteContainer.style.display = 'none';
-    document.body.appendChild(snippetTagAutocompleteContainer);
-  }
-
-  // Load all tags from snippets and conversations
-  await loadAllTagsForSnippets();
-
-  // Only add listeners once to avoid duplicates
-  if (!snippetTagAutocompleteInitialized) {
-    tagsInput.addEventListener('input', handleSnippetTagInput);
-    tagsInput.addEventListener('keydown', handleSnippetTagKeydown);
-    tagsInput.addEventListener('blur', () => {
-      setTimeout(() => {
-        if (snippetTagAutocompleteContainer) {
-          snippetTagAutocompleteContainer.style.display = 'none';
-        }
-      }, 150);
-    });
-    tagsInput.addEventListener('focus', () => {
-      if (tagsInput.value.trim()) {
-        showSnippetTagSuggestions(tagsInput.value.trim());
-      }
-    });
-    snippetTagAutocompleteInitialized = true;
-  }
-}
-
-async function loadAllTagsForSnippets() {
-  const allTags = new Set<string>();
-
-  // Load tags from conversations
-  try {
-    const convResponse = await chrome.runtime.sendMessage({ action: 'searchConversations', query: '', filters: {} });
-    if (convResponse?.results) {
-      convResponse.results.forEach((conv: any) => {
-        if (Array.isArray(conv.tags)) {
-          conv.tags.forEach((tag: string) => allTags.add(tag));
-        }
-      });
-    }
-  } catch (error) {
-    console.error('Error loading conversation tags:', error);
-  }
-
-  // Load tags from snippets
-  try {
-    const snippetResponse = await chrome.runtime.sendMessage({ action: 'listSnippets', filters: {} });
-    if (snippetResponse?.snippets) {
-      snippetResponse.snippets.forEach((snippet: any) => {
-        if (Array.isArray(snippet.tags)) {
-          snippet.tags.forEach((tag: string) => allTags.add(tag));
-        }
-      });
-    }
-  } catch (error) {
-    console.error('Error loading snippet tags:', error);
-  }
-
-  allSnippetTags = Array.from(allTags).sort((a, b) => a.localeCompare(b));
-}
-
-function handleSnippetTagInput(e: Event) {
-  const input = e.target as HTMLInputElement;
-  const value = input.value;
-  const lastCommaIndex = value.lastIndexOf(',');
-  const currentTag = lastCommaIndex === -1 ? value : value.substring(lastCommaIndex + 1);
-  const trimmedTag = currentTag.trim();
-
-  if (trimmedTag.length > 0) {
-    showSnippetTagSuggestions(trimmedTag);
-  } else {
-    hideSnippetTagSuggestions();
-  }
-}
-
-function handleSnippetTagKeydown(e: KeyboardEvent) {
-  if (!snippetTagAutocompleteContainer || snippetTagAutocompleteContainer.style.display === 'none') return;
-
-  const suggestions = snippetTagAutocompleteContainer.querySelectorAll('.tag-suggestion');
-
-  switch (e.key) {
-    case 'ArrowDown':
-      e.preventDefault();
-      selectedSnippetSuggestionIndex = Math.min(selectedSnippetSuggestionIndex + 1, suggestions.length - 1);
-      updateSnippetSuggestionSelection(suggestions);
-      break;
-    case 'ArrowUp':
-      e.preventDefault();
-      selectedSnippetSuggestionIndex = Math.max(selectedSnippetSuggestionIndex - 1, -1);
-      updateSnippetSuggestionSelection(suggestions);
-      break;
-    case 'Enter':
-    case 'Tab':
-      e.preventDefault();
-      if (selectedSnippetSuggestionIndex >= 0 && suggestions[selectedSnippetSuggestionIndex]) {
-        selectSnippetTagSuggestion(suggestions[selectedSnippetSuggestionIndex] as HTMLElement);
-      }
-      break;
-    case 'Escape':
-      hideSnippetTagSuggestions();
-      selectedSnippetSuggestionIndex = -1;
-      break;
-  }
-}
-
-function showSnippetTagSuggestions(query: string) {
-  if (!snippetTagAutocompleteContainer) return;
-
-  // Filter available tags
-  const filteredTags = allSnippetTags.filter(tag =>
-    tag.toLowerCase().includes(query.toLowerCase())
-  ).slice(0, 10);
-
-  if (filteredTags.length === 0) {
-    hideSnippetTagSuggestions();
-    return;
-  }
-
-  // Update position relative to the modal
-  const tagsInput = document.getElementById('snippet-tags') as HTMLInputElement | null;
-  const modal = document.getElementById('snippet-modal');
-  if (tagsInput && modal) {
-    const inputRect = tagsInput.getBoundingClientRect();
-    const modalRect = modal.getBoundingClientRect();
-    // Position relative to viewport (modal is fixed)
-    snippetTagAutocompleteContainer.style.top = (inputRect.bottom) + 'px';
-    snippetTagAutocompleteContainer.style.left = (inputRect.left) + 'px';
-    snippetTagAutocompleteContainer.style.width = inputRect.width + 'px';
-  }
-
-  // Clear previous suggestions
-  snippetTagAutocompleteContainer.innerHTML = '';
-  selectedSnippetSuggestionIndex = -1;
-
-  // Add new suggestions
-  filteredTags.forEach((tag, index) => {
-    if (!snippetTagAutocompleteContainer) return;
-
-    const suggestion = document.createElement('div');
-    suggestion.className = 'tag-suggestion';
-    suggestion.textContent = tag;
-    suggestion.style.padding = '8px 12px';
-    suggestion.style.cursor = 'pointer';
-    suggestion.style.borderBottom = index < filteredTags.length - 1 ? '1px solid #f0f0f0' : 'none';
-
-    suggestion.addEventListener('mouseenter', () => {
-      selectedSnippetSuggestionIndex = index;
-      if (snippetTagAutocompleteContainer) {
-        updateSnippetSuggestionSelection(snippetTagAutocompleteContainer.querySelectorAll('.tag-suggestion'));
-      }
-    });
-
-    suggestion.addEventListener('click', () => {
-      selectSnippetTagSuggestion(suggestion);
-    });
-
-    snippetTagAutocompleteContainer.appendChild(suggestion);
-  });
-
-  snippetTagAutocompleteContainer.style.display = 'block';
-}
-
-function hideSnippetTagSuggestions() {
-  if (snippetTagAutocompleteContainer) {
-    snippetTagAutocompleteContainer.style.display = 'none';
-    selectedSnippetSuggestionIndex = -1;
-  }
-}
-
-function updateSnippetSuggestionSelection(suggestions: NodeListOf<Element>) {
-  if (!suggestions) return;
-
-  suggestions.forEach((suggestion, index) => {
-    const element = suggestion as HTMLElement;
-    if (index === selectedSnippetSuggestionIndex) {
-      element.style.backgroundColor = '#e3f2fd';
-      element.style.color = '#1976d2';
-    } else {
-      element.style.backgroundColor = '';
-      element.style.color = '';
-    }
-  });
-}
-
-function selectSnippetTagSuggestion(suggestion: HTMLElement) {
-  const tagValue = suggestion.textContent || '';
-  const tagsInput = document.getElementById('snippet-tags') as HTMLInputElement | null;
-
-  if (!tagsInput) return;
-
-  const currentValue = tagsInput.value;
-  const lastCommaIndex = currentValue.lastIndexOf(',');
-  const prefix = lastCommaIndex === -1 ? '' : currentValue.substring(0, lastCommaIndex + 1) + ' ';
-  const newValue = prefix + tagValue + ', ';
-
-  tagsInput.value = newValue;
-  tagsInput.focus();
-
-  // Position cursor at end
-  const len = newValue.length;
-  tagsInput.setSelectionRange(len, len);
-
-  hideSnippetTagSuggestions();
 }
 
 function showSnippetModal(snippet?: SnippetItem) {
@@ -2031,11 +1517,6 @@ function showSnippetModal(snippet?: SnippetItem) {
   if (resultEl) resultEl.textContent = '';
 
   modal.style.display = 'flex';
-  
-  // Initialize tag autocomplete when modal opens (with small delay to ensure modal is rendered)
-  setTimeout(() => {
-    initSnippetTagAutocomplete();
-  }, 100);
 }
 
 function closeSnippetModal() {
