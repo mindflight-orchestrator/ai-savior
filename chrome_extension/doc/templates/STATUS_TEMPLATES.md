@@ -65,73 +65,63 @@ Ce document liste tous les domaines supportés par l'extension et leur statut co
 
 ---
 
-### ❌ Mistral (Non configuré)
+### ✅ Mistral (Complètement configuré)
 
 | Domaine | Extractor | Template | Settings | URL Detector |
 |---------|-----------|----------|----------|--------------|
-| `chat.mistral.ai` | ❌ | ❌ | ✅ | ✅ |
+| `chat.mistral.ai` | ✅ | ✅ | ✅ | ✅ |
 
-**Status** : ❌ **NÉCESSITE CONFIGURATION**
-**Action requise** : 
-1. Ajouter configuration XPath dans `extractor.ts`
-2. Créer template HTML `mistral.html` si nécessaire
-3. Tester l'extraction
+**Status** : ✅ Fonctionnel - Template disponible et extraction configurée
+**Template** : `mistral.html` existe
+**XPath** : `/html/body/main/div/div[1]/div/main/div/div/div/div/div[2]/div/div[2]/div[1]/div/div/div/div/div[1]/div[1]/div/div/div[1]`
 
 ---
 
-### ❌ DeepSeek (Non configuré)
+### ✅ DeepSeek (Complètement configuré)
 
 | Domaine | Extractor | Template | Settings | URL Detector |
 |---------|-----------|----------|----------|--------------|
-| `chat.deepseek.com` | ❌ | ❌ | ✅ | ✅ |
+| `chat.deepseek.com` | ✅ | ✅ | ✅ | ✅ |
 
-**Status** : ❌ **NÉCESSITE CONFIGURATION**
-**Action requise** : 
-1. Ajouter configuration XPath dans `extractor.ts`
-2. Créer template HTML `deepseek.html` si nécessaire
-3. Tester l'extraction
+**Status** : ✅ Fonctionnel - Template disponible et extraction configurée
+**Template** : `deepseek.html` existe
+**XPath** : `//*[@id="root"]/div/div/div[2]/div[3]/div/div[2]/div/div[2]/div[1]`
 
 ---
 
-### ❌ Qwen (Non configuré)
+### ✅ Qwen (Complètement configuré)
 
 | Domaine | Extractor | Template | Settings | URL Detector |
 |---------|-----------|----------|----------|--------------|
-| `chat.qwen.ai` | ❌ | ❌ | ✅ | ✅ |
+| `chat.qwen.ai` | ✅ | ✅ | ✅ | ✅ |
 
-**Status** : ❌ **NÉCESSITE CONFIGURATION**
-**Action requise** : 
-1. Ajouter configuration XPath dans `extractor.ts`
-2. Créer template HTML `qwen.html` si nécessaire
-3. Tester l'extraction
+**Status** : ✅ Fonctionnel - Template disponible et extraction configurée
+**Template** : `qwen.html` existe
+**XPath** : `//*[@id="chat-message-container"]`
 
 ---
 
-### ❌ Manus (Non configuré)
+### ✅ Manus (Complètement configuré)
 
 | Domaine | Extractor | Template | Settings | URL Detector |
 |---------|-----------|----------|----------|--------------|
-| `manus.im` | ❌ | ❌ | ✅ | ✅ |
+| `manus.im` | ✅ | ✅ | ✅ | ✅ |
 
-**Status** : ❌ **NÉCESSITE CONFIGURATION**
-**Action requise** : 
-1. Ajouter configuration XPath dans `extractor.ts`
-2. Créer template HTML `manus.html` si nécessaire
-3. Tester l'extraction
+**Status** : ✅ Fonctionnel - Template disponible et extraction configurée
+**Template** : `manus.html` existe
+**XPath** : `//*[@id="manus-home-page-session-content"]`
 
 ---
 
-### ❌ Grok (Non configuré)
+### ✅ Grok (Complètement configuré)
 
 | Domaine | Extractor | Template | Settings | URL Detector |
 |---------|-----------|----------|----------|--------------|
-| `grok.com` | ❌ | ❌ | ✅ | ✅ |
+| `grok.com` | ✅ | ✅ | ✅ | ✅ |
 
-**Status** : ❌ **NÉCESSITE CONFIGURATION**
-**Action requise** : 
-1. Ajouter configuration XPath dans `extractor.ts`
-2. Créer template HTML `grok.html` si nécessaire
-3. Tester l'extraction
+**Status** : ✅ Fonctionnel - Template disponible et extraction configurée
+**Template** : `grok.html` existe
+**XPath** : `/html/body/div[2]/div[2]/div/div/main/div[2]/div[2]/div`
 
 ---
 
@@ -139,13 +129,7 @@ Ce document liste tous les domaines supportés par l'extension et leur statut co
 
 ### 🔴 Priorité Haute - Domaines activés mais non configurés
 
-Ces domaines sont dans les settings par défaut mais n'ont pas de configuration d'extraction :
-
-1. **Mistral** (`chat.mistral.ai`)
-2. **DeepSeek** (`chat.deepseek.com`)
-3. **Qwen** (`chat.qwen.ai`)
-4. **Manus** (`manus.im`)
-5. **Grok** (`grok.com`)
+Tous les domaines activés par défaut sont maintenant configurés ! ✅
 
 ### 🟡 Priorité Moyenne - Domaines partiellement configurés
 

@@ -63,17 +63,6 @@ async function extractConversation(): Promise<any> {
       message: '//div[@data-message-author-role]',
       conversation: '//title',
     },
-    'www.perplexity.ai': {
-      title: 'documentTitle',
-      // Perplexity messages - look for content containers near copy buttons
-      message: '//div[contains(@id, "radix-") and contains(@id, "-content-thread")]//div[string-length(text()) > 20]',
-      conversation: '//title',
-    },
-    'perplexity.ai': {
-      title: 'documentTitle',
-      message: '//div[contains(@id, "radix-") and contains(@id, "-content-thread")]//div[string-length(text()) > 20]',
-      conversation: '//title',
-    },
     'www.kimi.com': {
       title: 'documentTitle',
       // Use special extraction for Kimi
@@ -86,11 +75,34 @@ async function extractConversation(): Promise<any> {
       message: '__kimi_special__',
       conversation: '//title',
     },
-    'claude.ai': {
+    'chat.deepseek.com': {
       title: 'documentTitle',
-      // Claude messages - extract from main-content container (user-provided XPath)
-      // Extract all message elements from the container: user messages and Claude responses
-      message: '//*[@id="main-content"]/div/div[1]/div/div/div/div[1]//div[@data-testid="user-message"] | //*[@id="main-content"]/div/div[1]/div/div/div/div[1]//div[contains(@class, "font-claude-response")]',
+      // DeepSeek messages container
+      message: '//*[@id="root"]/div/div/div[2]/div[3]/div/div[2]/div/div[2]/div[1]',
+      conversation: '//title',
+    },
+    'chat.mistral.ai': {
+      title: 'documentTitle',
+      // Mistral messages container
+      message: '/html/body/main/div/div[1]/div/main/div/div/div/div/div[2]/div/div[2]/div[1]/div/div/div/div/div[1]/div[1]/div/div/div[1]',
+      conversation: '//title',
+    },
+    'chat.qwen.ai': {
+      title: 'documentTitle',
+      // Qwen messages container
+      message: '//*[@id="chat-message-container"]',
+      conversation: '//title',
+    },
+    'manus.im': {
+      title: 'documentTitle',
+      // Manus messages container
+      message: '//*[@id="manus-home-page-session-content"]',
+      conversation: '//title',
+    },
+    'grok.com': {
+      title: 'documentTitle',
+      // Grok messages container
+      message: '/html/body/div[2]/div[2]/div/div/main/div[2]/div[2]/div',
       conversation: '//title',
     },
   };
