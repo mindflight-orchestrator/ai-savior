@@ -11,7 +11,7 @@ import { detectSourceFromUrl, normalizeUrl, getDomainFromUrl } from './url-detec
 
 // Listen for extension installation
 chrome.runtime.onInstalled.addListener(() => {
-  console.log('AI Saver extension installed');
+  console.log('AI Savior extension installed');
 });
 
 // Provider cache - invalidated when settings change

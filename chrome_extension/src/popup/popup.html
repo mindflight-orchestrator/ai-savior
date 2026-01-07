@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AI Saver</title>
+  <title>AI Savior</title>
   <style>
     * {
       margin: 0;
@@ -41,6 +41,54 @@
       display: flex;
       align-items: center;
       gap: 8px;
+      flex: 1;
+      min-width: 0;
+    }
+
+    #chat-favicons {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-left: 12px;
+      flex-wrap: wrap;
+    }
+
+    #chat-favicons.hidden {
+      display: none;
+    }
+
+    .chat-favicon {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 16px;
+      height: 16px;
+      border-radius: 2px;
+      cursor: pointer;
+      opacity: 0.7;
+      transition: opacity 0.2s;
+      flex-shrink: 0;
+      text-decoration: none;
+    }
+
+    .chat-favicon:hover {
+      opacity: 1;
+    }
+
+    .chat-favicon img {
+      width: 16px;
+      height: 16px;
+      display: block;
+    }
+
+    body.save-mode.small-width #chat-favicons {
+      display: none;
+    }
+
+    @media (max-width: 450px) {
+      body.save-mode #chat-favicons {
+        display: none;
+      }
     }
 
     #header-right {
@@ -79,7 +127,36 @@
 <body>
   <div id="header">
     <div id="header-left">
-      <span>AI Saver</span>
+      <span>AI Savior</span>
+      <div id="chat-favicons">
+        <a href="https://chat.openai.com" target="_blank" class="chat-favicon" title="ChatGPT" data-favicon="chatgpt">
+          <img src="" alt="ChatGPT" data-remote="https://chat.openai.com/favicon.ico">
+        </a>
+        <a href="https://claude.ai" target="_blank" class="chat-favicon" title="Claude" data-favicon="claude">
+          <img src="" alt="Claude" data-remote="https://claude.ai/favicon.ico">
+        </a>
+        <a href="https://www.perplexity.ai" target="_blank" class="chat-favicon" title="Perplexity" data-favicon="perplexity">
+          <img src="" alt="Perplexity" data-remote="https://www.perplexity.ai/favicon.ico">
+        </a>
+        <a href="https://www.kimi.com" target="_blank" class="chat-favicon" title="Kimi" data-favicon="kimi">
+          <img src="" alt="Kimi" data-remote="https://www.kimi.com/favicon.ico">
+        </a>
+        <a href="https://chat.mistral.ai" target="_blank" class="chat-favicon" title="Mistral" data-favicon="mistral">
+          <img src="" alt="Mistral" data-remote="https://chat.mistral.ai/favicon.ico">
+        </a>
+        <a href="https://chat.deepseek.com" target="_blank" class="chat-favicon" title="DeepSeek" data-favicon="deepseek">
+          <img src="" alt="DeepSeek" data-remote="https://chat.deepseek.com/favicon.ico">
+        </a>
+        <a href="https://chat.qwen.ai" target="_blank" class="chat-favicon" title="Qwen" data-favicon="qwen">
+          <img src="" alt="Qwen" data-remote="https://chat.qwen.ai/favicon.ico">
+        </a>
+        <a href="https://manus.im" target="_blank" class="chat-favicon" title="Manus" data-favicon="manus">
+          <img src="" alt="Manus" data-remote="https://manus.im/favicon.ico">
+        </a>
+        <a href="https://grok.com" target="_blank" class="chat-favicon" title="Grok" data-favicon="grok">
+          <img src="" alt="Grok" data-remote="https://grok.com/favicon.ico">
+        </a>
+      </div>
     </div>
     <div id="header-right">
       <button id="search-icon" title="Recherche">🔍</button>

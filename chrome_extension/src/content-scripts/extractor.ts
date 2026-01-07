@@ -77,8 +77,8 @@ async function extractConversation(): Promise<any> {
     },
     'chat.deepseek.com': {
       title: 'documentTitle',
-      // DeepSeek messages container
-      message: '//*[@id="root"]/div/div/div[2]/div[3]/div/div[2]/div/div[2]/div[1]',
+      // Use special extraction for DeepSeek
+      message: '__deepseek_special__',
       conversation: '//title',
     },
     'chat.mistral.ai': {
@@ -122,6 +122,8 @@ async function extractConversation(): Promise<any> {
     let content: string;
     if (messageXPath === '__kimi_special__') {
       content = extractKimiContent();
+    } else if (messageXPath === '__deepseek_special__') {
+      content = extractDeepSeekContent();
     } else {
       content = extractContent(messageXPath);
     }
@@ -333,6 +335,107 @@ function extractKimiContent(): string {
     return '';
   } catch (error) {
     console.error('Error extracting Kimi content:', error);
+    return '';
+  }
+}
+
+/**
+ * Special extraction for DeepSeek.com
+ * Tries multiple strategies to find conversation messages
+ */
+function extractDeepSeekContent(): string {
+  try {
+    // Strategy 1: Try the original specific XPath
+    const specificXPath = '//*[@id="root"]/div/div/div[2]/div[3]/div/div[2]/div/div[2]/div[1]';
+    const specificResult = document.evaluate(
+      specificXPath,
+      document,
+      null,
+      XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
+      null
+    );
+    
+    if (specificResult.snapshotLength > 0) {
+      const messages: string[] = [];
+      for (let i = 0; i < specificResult.snapshotLength; i++) {
+        const node = specificResult.snapshotItem(i);
+        if (node) {
+          const text = extractTextFromNode(node);
+          if (text && text.length > 10) {
+            messages.push(text);
+          }
+        }
+      }
+      if (messages.length > 0) {
+        return messages.join('\n\n');
+      }
+    }
+    
+    // Strategy 2: Try to find root container and search for message-like divs
+    const rootElement = document.getElementById('root');
+    if (rootElement) {
+      // Look for divs with substantial text content that might be messages
+      const allDivs = rootElement.querySelectorAll('div');
+      const messages: string[] = [];
+      const seenTexts = new Set<string>();
+      
+      for (const div of Array.from(allDivs)) {
+        // Skip if it's mostly buttons/icons or very small
+        if (div.querySelectorAll('button, svg').length > 0 && div.textContent && div.textContent.trim().length < 50) {
+          continue;
+        }
+        
+        const text = extractTextFromNode(div);
+        // Only include if it has substantial content and we haven't seen it
+        if (text && text.length > 20 && !seenTexts.has(text)) {
+          messages.push(text);
+          seenTexts.add(text);
+        }
+      }
+      
+      if (messages.length > 0) {
+        return messages.join('\n\n');
+      }
+    }
+    
+    // Strategy 3: Try to find common chat container patterns
+    const commonSelectors = [
+      '[class*="message"]',
+      '[class*="chat"]',
+      '[class*="conversation"]',
+      '[class*="content"]',
+    ];
+    
+    for (const selector of commonSelectors) {
+      try {
+        const elements = document.querySelectorAll(selector);
+        const messages: string[] = [];
+        for (const el of Array.from(elements)) {
+          const text = extractTextFromNode(el);
+          if (text && text.length > 20) {
+            messages.push(text);
+          }
+        }
+        if (messages.length > 0) {
+          return messages.join('\n\n');
+        }
+      } catch (e) {
+        // Ignore selector errors
+      }
+    }
+    
+    // Last resort: extract all text from root
+    if (rootElement) {
+      const text = extractTextFromNode(rootElement);
+      if (text && text.length > 50) {
+        return text;
+      }
+    }
+    
+    console.warn('[DeepSeek] Could not extract conversation content - no matching elements found');
+    return '';
+  } catch (error) {
+    console.error('Error extracting DeepSeek content:', error);
     return '';
   }
 }

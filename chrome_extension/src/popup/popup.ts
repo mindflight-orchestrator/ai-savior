@@ -54,12 +54,109 @@ function hideAllTabContents() {
 
 function updateWindowSize(tabName: string | null) {
   const body = document.body;
+  const chatFavicons = document.getElementById('chat-favicons');
+  
   if (tabName === 'search') {
     body.classList.add('large-view');
+    body.classList.remove('save-mode');
+    if (chatFavicons) chatFavicons.classList.remove('hidden');
   } else {
     body.classList.remove('large-view');
+    // Hide favicons in save mode if window is small
+    if (tabName === 'save') {
+      body.classList.add('save-mode');
+      // Check if window is small (less than 450px)
+      if (window.innerWidth < 450) {
+        if (chatFavicons) chatFavicons.classList.add('hidden');
+      } else {
+        if (chatFavicons) chatFavicons.classList.remove('hidden');
+      }
+    } else {
+      body.classList.remove('save-mode');
+      if (chatFavicons) chatFavicons.classList.remove('hidden');
+    }
+  }
+  
+  // Update body class for small width detection
+  if (window.innerWidth < 450) {
+    body.classList.add('small-width');
+  } else {
+    body.classList.remove('small-width');
   }
 }
+
+// Handle window resize to show/hide favicons in save mode
+window.addEventListener('resize', () => {
+  const activeTab = document.querySelector('.tab.active')?.getAttribute('data-tab');
+  const body = document.body;
+  const chatFavicons = document.getElementById('chat-favicons');
+  
+  // Update small-width class
+  if (window.innerWidth < 450) {
+    body.classList.add('small-width');
+  } else {
+    body.classList.remove('small-width');
+  }
+  
+  // Update favicons visibility in save mode
+  if (activeTab === 'save') {
+    if (window.innerWidth < 450) {
+      if (chatFavicons) chatFavicons.classList.add('hidden');
+    } else {
+      if (chatFavicons) chatFavicons.classList.remove('hidden');
+    }
+  }
+});
+
+// Initialize favicons visibility on load (will be called after DOMContentLoaded)
+// Handle favicon loading - try local first, then remote, keep link visible always
+function initFavicons() {
+  const faviconLinks = document.querySelectorAll('.chat-favicon');
+  faviconLinks.forEach((link) => {
+    const imageElement = link.querySelector('img') as HTMLImageElement;
+    if (!imageElement) return;
+    
+    const faviconName = link.getAttribute('data-favicon');
+    const remoteUrl = imageElement.getAttribute('data-remote');
+    
+    if (!faviconName || !remoteUrl) return;
+    
+    // Try local favicon first
+    const localFavicon = chrome.runtime.getURL(`icons/favicons/${faviconName}.ico`);
+    const testImg = new Image();
+    
+    testImg.onload = () => {
+      // Local favicon exists, use it
+      imageElement.src = localFavicon;
+    };
+    
+    testImg.onerror = () => {
+      // Local doesn't exist, try remote
+      imageElement.src = remoteUrl;
+      
+      // If remote also fails, keep link visible with fallback indicator
+      imageElement.addEventListener('error', () => {
+        imageElement.style.display = 'none';
+        if (!link.querySelector('.favicon-fallback')) {
+          const fallback = document.createElement('span');
+          fallback.className = 'favicon-fallback';
+          fallback.textContent = '●';
+          fallback.style.cssText = 'font-size: 8px; color: #999; display: inline-block; width: 16px; height: 16px; line-height: 16px; text-align: center;';
+          link.appendChild(fallback);
+        }
+      }, { once: true });
+    };
+    
+    testImg.src = localFavicon;
+  });
+}
+
+setTimeout(() => {
+  const activeTab = document.querySelector('.tab.active')?.getAttribute('data-tab') || 'save';
+  updateWindowSize(activeTab);
+  // Initialize favicons after DOM is ready
+  initFavicons();
+}, 0);
 
 function showTabsView() {
   if (settingsView) settingsView.style.display = 'none';
@@ -1013,31 +1110,6 @@ async function initSettingsUI() {
   exportDataLink?.addEventListener('click', async (e) => {
     e.preventDefault();
     await handleExport();
-  });
-    if (!backupStatus) return;
-    try {
-      backupStatus.textContent = 'Export en cours...';
-      backupStatus.style.color = '#444';
-      
-      // Get provider from service worker
-      const response = await chrome.runtime.sendMessage({ action: 'exportBackup' });
-      
-      if (response.error) {
-        backupStatus.textContent = `❌ Erreur: ${response.error}`;
-        backupStatus.style.color = '#d32f2f';
-      } else {
-        backupStatus.textContent = '✅ Backup exporté avec succès';
-        backupStatus.style.color = '#10b981';
-        setTimeout(() => {
-          if (backupStatus) backupStatus.textContent = '';
-        }, 3000);
-      }
-    } catch (error) {
-      if (backupStatus) {
-        backupStatus.textContent = `❌ Erreur: ${error instanceof Error ? error.message : String(error)}`;
-        backupStatus.style.color = '#d32f2f';
-      }
-    }
   });
 
   importBackupBtn?.addEventListener('click', () => {

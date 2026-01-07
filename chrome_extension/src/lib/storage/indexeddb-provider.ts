@@ -599,4 +599,25 @@ export class IndexedDBProvider implements StorageProvider {
 
     return result;
   }
+
+  // ========== Database Management ==========
+
+  async clearDatabase(): Promise<void> {
+    const db = await this.getDB();
+    const objectStoreNames = ['conversations', 'snippets', 'collections', 'settings'];
+    
+    // Clear each object store
+    for (const storeName of objectStoreNames) {
+      const tx = db.transaction(storeName, 'readwrite');
+      const store = tx.objectStore(storeName);
+      await new Promise<void>((resolve, reject) => {
+        const request = store.clear();
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+      });
+    }
+    
+    // Reinitialize default settings after clearing
+    await initializeDefaultSettings();
+  }
 }

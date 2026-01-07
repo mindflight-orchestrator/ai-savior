@@ -8,6 +8,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "icons": "node scripts/generate-icons.js",
+    "download-favicons": "node scripts/download-favicons.js",
     "test": "playwright test",
     "test:ui": "playwright test --ui",
     "test:headed": "playwright test --headed",

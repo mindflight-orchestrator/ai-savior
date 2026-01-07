@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "AI Saver",
+  "name": "AI Savior",
   "version": "0.1.0",
   "description": "Save and organize your AI conversations from ChatGPT, Claude, Perplexity, and Kimi",
   "permissions": [
@@ -30,7 +30,7 @@
   },
   "action": {
     "default_popup": "src/popup/popup.html",
-    "default_title": "AI Saver"
+    "default_title": "AI Savior"
   },
   "content_scripts": [
     {
@@ -57,5 +57,11 @@
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
-  }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["icons/favicons/*"],
+      "matches": ["<all_urls>"]
+    }
+  ]
 }
