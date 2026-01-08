@@ -339,6 +339,43 @@ export class GoBackendProvider implements StorageProvider {
     return result;
   }
 
+  // ========== Tags ==========
+
+  async getAllTags(): Promise<string[]> {
+    try {
+      // Try to fetch from dedicated endpoint if available
+      const tags = await this.request<string[]>('GET', '/api/tags');
+      return tags.sort((a, b) => a.localeCompare(b));
+    } catch (error) {
+      // Fallback: fetch all conversations and snippets, then extract tags
+      const allTags = new Set<string>();
+      
+      try {
+        const conversations = await this.searchConversations('', {});
+        conversations.forEach((conv) => {
+          if (Array.isArray(conv.tags)) {
+            conv.tags.forEach((tag) => allTags.add(tag));
+          }
+        });
+      } catch (e) {
+        console.warn('Error fetching conversations for tags:', e);
+      }
+      
+      try {
+        const snippets = await this.listSnippets({});
+        snippets.forEach((snippet) => {
+          if (Array.isArray(snippet.tags)) {
+            snippet.tags.forEach((tag) => allTags.add(tag));
+          }
+        });
+      } catch (e) {
+        console.warn('Error fetching snippets for tags:', e);
+      }
+      
+      return Array.from(allTags).sort((a, b) => a.localeCompare(b));
+    }
+  }
+
   // ========== Connection Test ==========
 
   /**

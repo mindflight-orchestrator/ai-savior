@@ -28,4 +28,7 @@ export interface StorageProvider {
   // Settings
   getSettings(): Promise<Settings>;
   saveSettings(settings: Settings): Promise<void>;
+  
+  // Tags
+  getAllTags(): Promise<string[]>;
 }

@@ -600,6 +600,57 @@ export class IndexedDBProvider implements StorageProvider {
     return result;
   }
 
+  // ========== Tags ==========
+
+  async getAllTags(): Promise<string[]> {
+    const db = await this.getDB();
+    const allTags = new Set<string>();
+
+    // Get tags from conversations
+    const conversationsTx = db.transaction('conversations', 'readonly');
+    const conversationsStore = conversationsTx.objectStore('conversations');
+    
+    await new Promise<void>((resolve, reject) => {
+      const request = conversationsStore.openCursor();
+      request.onsuccess = (event) => {
+        const cursor = (event.target as IDBRequest<IDBCursorWithValue>).result;
+        if (cursor) {
+          const conv = cursor.value as Conversation;
+          if (Array.isArray(conv.tags)) {
+            conv.tags.forEach((tag) => allTags.add(tag));
+          }
+          cursor.continue();
+        } else {
+          resolve();
+        }
+      };
+      request.onerror = () => reject(request.error);
+    });
+
+    // Get tags from snippets
+    const snippetsTx = db.transaction('snippets', 'readonly');
+    const snippetsStore = snippetsTx.objectStore('snippets');
+    
+    await new Promise<void>((resolve, reject) => {
+      const request = snippetsStore.openCursor();
+      request.onsuccess = (event) => {
+        const cursor = (event.target as IDBRequest<IDBCursorWithValue>).result;
+        if (cursor) {
+          const snippet = cursor.value as Snippet;
+          if (Array.isArray(snippet.tags)) {
+            snippet.tags.forEach((tag) => allTags.add(tag));
+          }
+          cursor.continue();
+        } else {
+          resolve();
+        }
+      };
+      request.onerror = () => reject(request.error);
+    });
+
+    return Array.from(allTags).sort((a, b) => a.localeCompare(b));
+  }
+
   // ========== Database Management ==========
 
   async clearDatabase(): Promise<void> {

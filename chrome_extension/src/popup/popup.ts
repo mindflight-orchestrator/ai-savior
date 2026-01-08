@@ -131,20 +131,21 @@ function initFavicons() {
     };
     
     testImg.onerror = () => {
-      // Local doesn't exist, try remote
-      imageElement.src = remoteUrl;
-      
-      // If remote also fails, keep link visible with fallback indicator
-      imageElement.addEventListener('error', () => {
-        imageElement.style.display = 'none';
-        if (!link.querySelector('.favicon-fallback')) {
-          const fallback = document.createElement('span');
-          fallback.className = 'favicon-fallback';
-          fallback.textContent = '●';
-          fallback.style.cssText = 'font-size: 8px; color: #999; display: inline-block; width: 16px; height: 16px; line-height: 16px; text-align: center;';
-          link.appendChild(fallback);
+      // Local doesn't exist, show fallback indicator directly
+      // Don't try to load remote favicons to avoid unnecessary network requests
+      imageElement.style.display = 'none';
+      if (!link.querySelector('.favicon-fallback')) {
+        const fallback = document.createElement('span');
+        fallback.className = 'favicon-fallback';
+        fallback.textContent = '●';
+        fallback.style.cssText = 'font-size: 8px; color: #999; display: inline-block; width: 16px; height: 16px; line-height: 16px; text-align: center;';
+        // Copy the title attribute from the parent link for tooltip
+        const linkTitle = link.getAttribute('title');
+        if (linkTitle) {
+          fallback.setAttribute('title', linkTitle);
         }
-      }, { once: true });
+        link.appendChild(fallback);
+      }
     };
     
     testImg.src = localFavicon;
@@ -202,6 +203,17 @@ tabs.forEach((tab) => {
     if (targetTab === 'search') {
       const input = document.getElementById('search-input') as HTMLInputElement | null;
       runSearch(input?.value ?? '');
+    }
+    
+    // If user opens Save tab, ensure tag autocomplete is initialized
+    if (targetTab === 'save') {
+      const tagsInput = document.getElementById('save-tags') as HTMLInputElement | null;
+      if (tagsInput && !tagAutocompleteContainer) {
+        // Re-initialize if not already done
+        initTagAutocomplete();
+      }
+      // Reload tags when opening save tab
+      loadAllTagsForAutocomplete();
     }
   });
 });
@@ -477,6 +489,7 @@ function renderSearchResults(items: SearchResultItem[]) {
 
 let searchDebounce: number | undefined;
 let selectedTags: Set<string> = new Set<string>();
+let allAvailableTags: string[] = [];
 
 async function runSearch(query: string, tagFilter?: string[]) {
   setSearchStatus('Recherche…');
@@ -515,6 +528,9 @@ function updateTagsList(results: SearchResultItem[]) {
 
   // Sort tags alphabetically
   const sortedTags = Array.from(allTags).sort((a, b) => a.localeCompare(b));
+
+  // Update global available tags list for autocomplete
+  allAvailableTags = sortedTags;
 
   // Clear and rebuild tags list
   tagsContainer.innerHTML = '';
@@ -683,8 +699,16 @@ document.getElementById('save-now')?.addEventListener('click', async () => {
       if (saved?.canonical_url) {
         setSaveResult('✅ Conversation sauvegardée');
         refreshTabState();
+        // Reload tags to include any new tags from the conversation
+        setTimeout(() => {
+          loadAllTagsForAutocomplete();
+        }, 300);
       } else {
         setSaveResult('✅ Sauvegarde terminée');
+        // Reload tags even if save didn't return a conversation
+        setTimeout(() => {
+          loadAllTagsForAutocomplete();
+        }, 300);
       }
     }
   );
@@ -825,6 +849,10 @@ editSave?.addEventListener('click', async () => {
         editResult.textContent = '✅ Conversation mise à jour';
         editResult.style.color = '#2e7d32';
       }
+      // Reload tags to include any new tags from the updated conversation
+      setTimeout(() => {
+        loadAllTagsForAutocomplete();
+      }, 300);
       // Refresh search results after 1s
       setTimeout(() => {
         closeEditModal();
@@ -1643,6 +1671,10 @@ async function saveSnippetFromModal() {
     }
     closeSnippetModal();
     loadSnippets();
+    // Reload tags to include any new tags from the snippet
+    setTimeout(() => {
+      loadAllTagsForAutocomplete();
+    }, 300);
   });
 }
 
@@ -1662,3 +1694,244 @@ async function deleteSnippet(id: number) {
 
 // Init snippets UI on load
 initSnippetsUI();
+
+// ========== Tag Autocomplete ==========
+
+// Tag autocomplete functionality for SAVE tab
+let tagAutocompleteContainer: HTMLDivElement | null = null;
+let currentTagInput: HTMLInputElement | null = null;
+let selectedSuggestionIndex = -1;
+
+/**
+ * Load all tags from storage to populate autocomplete
+ */
+async function loadAllTagsForAutocomplete() {
+  try {
+    chrome.runtime.sendMessage({ action: 'getAllTags' }, (response: any) => {
+      if (chrome.runtime.lastError) {
+        console.warn('[Tag Autocomplete] Error loading tags:', chrome.runtime.lastError);
+        return;
+      }
+      if (response?.error) {
+        console.warn('[Tag Autocomplete] Error loading tags:', response.error);
+        return;
+      }
+      allAvailableTags = Array.isArray(response?.tags) ? response.tags : [];
+      console.log('[Tag Autocomplete] Loaded', allAvailableTags.length, 'tags');
+    });
+  } catch (error) {
+    console.warn('[Tag Autocomplete] Error loading tags:', error);
+  }
+}
+
+function initTagAutocomplete() {
+  const tagsInput = document.getElementById('save-tags') as HTMLInputElement | null;
+  if (!tagsInput) return;
+
+  // Don't re-initialize if already done
+  if (tagAutocompleteContainer) return;
+
+  // Create autocomplete container
+  tagAutocompleteContainer = document.createElement('div');
+  tagAutocompleteContainer.style.position = 'absolute';
+  tagAutocompleteContainer.style.background = 'white';
+  tagAutocompleteContainer.style.border = '1px solid #ddd';
+  tagAutocompleteContainer.style.borderRadius = '6px';
+  tagAutocompleteContainer.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
+  tagAutocompleteContainer.style.maxHeight = '200px';
+  tagAutocompleteContainer.style.overflowY = 'auto';
+  tagAutocompleteContainer.style.zIndex = '1000';
+  tagAutocompleteContainer.style.display = 'none';
+
+  document.body.appendChild(tagAutocompleteContainer);
+
+  // Add event listeners
+  tagsInput.addEventListener('input', handleTagInput);
+  tagsInput.addEventListener('keydown', handleTagKeydown);
+  tagsInput.addEventListener('blur', () => {
+    // Delay hiding to allow click on suggestions
+    setTimeout(() => {
+      if (tagAutocompleteContainer) {
+        tagAutocompleteContainer.style.display = 'none';
+      }
+    }, 150);
+  });
+  tagsInput.addEventListener('focus', () => {
+    const input = tagsInput;
+    if (input.value.trim()) {
+      showTagSuggestions(input.value.trim());
+    }
+  });
+
+  // Update container position on resize
+  window.addEventListener('resize', updateAutocompletePosition);
+}
+
+function updateAutocompletePosition() {
+  const tagsInput = document.getElementById('save-tags') as HTMLInputElement | null;
+  if (!tagsInput || !tagAutocompleteContainer) return;
+
+  const inputRect = tagsInput.getBoundingClientRect();
+  const popupRect = document.body.getBoundingClientRect();
+  
+  // Position relative to popup, not window
+  tagAutocompleteContainer.style.top = (inputRect.bottom - popupRect.top + 2) + 'px';
+  tagAutocompleteContainer.style.left = (inputRect.left - popupRect.left) + 'px';
+  tagAutocompleteContainer.style.width = inputRect.width + 'px';
+}
+
+function handleTagInput(e: Event) {
+  const input = e.target as HTMLInputElement;
+  const value = input.value;
+  const lastCommaIndex = value.lastIndexOf(',');
+  const currentTag = lastCommaIndex === -1 ? value : value.substring(lastCommaIndex + 1);
+  const trimmedTag = currentTag.trim();
+
+  // Only show suggestions if we have tags loaded
+  if (trimmedTag.length > 0 && allAvailableTags.length > 0) {
+    showTagSuggestions(trimmedTag);
+  } else {
+    hideTagSuggestions();
+  }
+}
+
+function handleTagKeydown(e: KeyboardEvent) {
+  if (!tagAutocompleteContainer || tagAutocompleteContainer.style.display === 'none') return;
+
+  const suggestions = tagAutocompleteContainer.querySelectorAll('.tag-suggestion');
+
+  switch (e.key) {
+    case 'ArrowDown':
+      e.preventDefault();
+      selectedSuggestionIndex = Math.min(selectedSuggestionIndex + 1, suggestions.length - 1);
+      updateSuggestionSelection(suggestions);
+      break;
+    case 'ArrowUp':
+      e.preventDefault();
+      selectedSuggestionIndex = Math.max(selectedSuggestionIndex - 1, -1);
+      updateSuggestionSelection(suggestions);
+      break;
+    case 'Enter':
+    case 'Tab':
+      e.preventDefault();
+      if (selectedSuggestionIndex >= 0 && suggestions[selectedSuggestionIndex]) {
+        selectTagSuggestion(suggestions[selectedSuggestionIndex] as HTMLElement);
+      }
+      break;
+    case 'Escape':
+      hideTagSuggestions();
+      selectedSuggestionIndex = -1;
+      break;
+  }
+}
+
+function showTagSuggestions(query: string) {
+  if (!tagAutocompleteContainer) {
+    console.warn('[Tag Autocomplete] Container not initialized');
+    return;
+  }
+
+  // Filter available tags
+  const filteredTags = allAvailableTags.filter(tag =>
+    tag.toLowerCase().includes(query.toLowerCase())
+  ).slice(0, 10); // Limit to 10 suggestions
+
+  console.log('[Tag Autocomplete] Query:', query, 'Filtered:', filteredTags.length, 'from', allAvailableTags.length);
+
+  if (filteredTags.length === 0) {
+    hideTagSuggestions();
+    return;
+  }
+
+  // Update position before showing
+  updateAutocompletePosition();
+
+  // Clear previous suggestions
+  tagAutocompleteContainer.innerHTML = '';
+  selectedSuggestionIndex = -1;
+
+  // Add new suggestions
+  filteredTags.forEach((tag, index) => {
+    if (!tagAutocompleteContainer) return;
+
+    const suggestion = document.createElement('div');
+    suggestion.className = 'tag-suggestion';
+    suggestion.textContent = tag;
+    suggestion.style.padding = '8px 12px';
+    suggestion.style.cursor = 'pointer';
+    suggestion.style.borderBottom = index < filteredTags.length - 1 ? '1px solid #f0f0f0' : 'none';
+
+    suggestion.addEventListener('mouseenter', () => {
+      selectedSuggestionIndex = index;
+      if (tagAutocompleteContainer) {
+        updateSuggestionSelection(tagAutocompleteContainer.querySelectorAll('.tag-suggestion'));
+      }
+    });
+
+    suggestion.addEventListener('click', () => {
+      selectTagSuggestion(suggestion);
+    });
+
+    tagAutocompleteContainer.appendChild(suggestion);
+  });
+
+  if (tagAutocompleteContainer) {
+    tagAutocompleteContainer.style.display = 'block';
+  }
+}
+
+function hideTagSuggestions() {
+  if (tagAutocompleteContainer) {
+    tagAutocompleteContainer.style.display = 'none';
+    selectedSuggestionIndex = -1;
+  }
+}
+
+function updateSuggestionSelection(suggestions: NodeListOf<Element>) {
+  if (!suggestions) return;
+
+  suggestions.forEach((suggestion, index) => {
+    const element = suggestion as HTMLElement;
+    if (index === selectedSuggestionIndex) {
+      element.style.backgroundColor = '#e3f2fd';
+      element.style.color = '#1976d2';
+    } else {
+      element.style.backgroundColor = '';
+      element.style.color = '';
+    }
+  });
+}
+
+function selectTagSuggestion(suggestion: HTMLElement) {
+  const tagValue = suggestion.textContent || '';
+  const tagsInput = document.getElementById('save-tags') as HTMLInputElement | null;
+
+  if (!tagsInput) return;
+
+  const currentValue = tagsInput.value;
+  const lastCommaIndex = currentValue.lastIndexOf(',');
+  const prefix = lastCommaIndex === -1 ? '' : currentValue.substring(0, lastCommaIndex + 1) + ' ';
+  const newValue = prefix + tagValue + ', ';
+
+  tagsInput.value = newValue;
+  tagsInput.focus();
+
+  // Position cursor at end
+  const len = newValue.length;
+  tagsInput.setSelectionRange(len, len);
+
+  hideTagSuggestions();
+}
+
+// Initialize tag autocomplete on page load
+// Wait for DOM to be ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => {
+    loadAllTagsForAutocomplete();
+    initTagAutocomplete();
+  });
+} else {
+  // DOM is already ready
+  loadAllTagsForAutocomplete();
+  initTagAutocomplete();
+}

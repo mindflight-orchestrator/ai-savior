@@ -375,6 +375,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       handleClearDatabase(sendResponse);
       return true;
 
+    case 'getAllTags':
+      handleGetAllTags(sendResponse);
+      return true;
+
     default:
       console.warn('Unknown action:', message.action);
       sendResponse({ error: 'Unknown action' });
@@ -851,6 +855,18 @@ async function handleClearDatabase(sendResponse: (response: any) => void) {
     sendResponse({ success: true });
   } catch (error) {
     console.error('Error clearing database:', error);
+    sendResponse({ error: error instanceof Error ? error.message : String(error) });
+  }
+}
+
+// Handle getAllTags request
+async function handleGetAllTags(sendResponse: (response: any) => void) {
+  try {
+    const provider = await getProvider();
+    const tags = await provider.getAllTags();
+    sendResponse({ tags });
+  } catch (error) {
+    console.error('Error getting all tags:', error);
     sendResponse({ error: error instanceof Error ? error.message : String(error) });
   }
 }

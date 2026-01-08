@@ -383,6 +383,34 @@ export class HybridProvider implements StorageProvider {
     await Promise.all([localPromise, remotePromise]);
   }
 
+  // ========== Tags ==========
+
+  async getAllTags(): Promise<string[]> {
+    const allTags = new Set<string>();
+    
+    // Get tags from local cache
+    try {
+      const localTags = await this.localProvider.getAllTags();
+      localTags.forEach((tag) => allTags.add(tag));
+    } catch (error) {
+      console.warn('[Hybrid] Error getting tags from local cache:', error);
+    }
+    
+    // Get tags from remote
+    try {
+      const remoteTags = await this.remoteProvider.getAllTags();
+      remoteTags.forEach((tag) => allTags.add(tag));
+    } catch (error) {
+      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+        console.debug('[Hybrid] Backend unavailable (network error), using local tags only');
+      } else {
+        console.warn('[Hybrid] Error getting tags from remote:', error);
+      }
+    }
+    
+    return Array.from(allTags).sort((a, b) => a.localeCompare(b));
+  }
+
   // ========== Backup & Restore ==========
 
   /**
