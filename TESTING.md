@@ -160,10 +160,81 @@ const result = document.evaluate(
 console.log(`Found ${result.snapshotLength} elements`);
 ```
 
+## Méthode 4 : Tests automatisés avec Playwright
+
+### Installation
+
+1. **Installer les dépendances** :
+   ```bash
+   npm install
+   ```
+
+2. **Installer les navigateurs Playwright** :
+   ```bash
+   npx playwright install chromium
+   ```
+
+3. **Construire l'extension** (nécessaire avant les tests) :
+   ```bash
+   npm run build
+   ```
+
+### Exécuter les tests
+
+```bash
+# Tous les tests
+npm test
+
+# Mode UI interactif
+npm run test:ui
+
+# Mode headed (voir le navigateur)
+npm run test:headed
+
+# Mode debug
+npm run test:debug
+
+# Un fichier spécifique
+npx playwright test tests/popup.spec.ts
+```
+
+### Structure des tests
+
+Les tests sont organisés dans le dossier `tests/` :
+
+- `extension-loading.spec.ts` - Vérifie que l'extension se charge correctement
+- `popup.spec.ts` - Teste l'interface popup et la navigation
+- `content-script.spec.ts` - Teste l'injection des content scripts et l'extraction
+- `storage.spec.ts` - Teste IndexedDB et chrome.storage
+- `helpers/extension-helpers.ts` - Fonctions utilitaires pour travailler avec l'extension
+
+### Exemple de test
+
+```typescript
+test('Popup should open and display correctly', async () => {
+  const popup = await getExtensionPopup(context, extensionId);
+  await popup.waitForLoadState('networkidle');
+  
+  const title = await popup.title();
+  expect(title).toBeTruthy();
+  
+  await popup.close();
+});
+```
+
+### Notes importantes
+
+- **Mode headless** : Les extensions Chrome ne fonctionnent PAS en mode headless. Playwright configure automatiquement `headless: false`.
+- **Service Workers** : Le test des service workers est limité car ils sont isolés.
+- **Sites réels** : Les tests qui accèdent à des sites réels (comme chat.openai.com) peuvent être instables.
+
+Voir `tests/README.md` pour plus de détails.
+
 ## Prochaines étapes
 
 Une fois les tests de base validés :
 
-1. Implémenter les tests unitaires pour le provider IndexedDB
-2. Créer des tests d'intégration pour le Beast Mode
-3. Ajouter des tests E2E avec Puppeteer ou Playwright
+1. ✅ Ajouter des tests E2E avec Playwright (fait)
+2. Implémenter les tests unitaires pour le provider IndexedDB
+3. Créer des tests d'intégration pour le Beast Mode
+4. Ajouter des tests de performance
