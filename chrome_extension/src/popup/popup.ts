@@ -56,7 +56,8 @@ function updateWindowSize(tabName: string | null) {
   const body = document.body;
   const chatFavicons = document.getElementById('chat-favicons');
   
-  if (tabName === 'search') {
+  // Search and Snippets tabs use large view
+  if (tabName === 'search' || tabName === 'snippets') {
     body.classList.add('large-view');
     body.classList.remove('save-mode');
     if (chatFavicons) chatFavicons.classList.remove('hidden');
@@ -199,10 +200,12 @@ tabs.forEach((tab) => {
       targetContent.style.display = 'block';
     }
 
-    // If user opens Search tab, refresh results (use current query)
+    // If user opens Search tab, refresh results and load all tags for sidebar
     if (targetTab === 'search') {
       const input = document.getElementById('search-input') as HTMLInputElement | null;
       runSearch(input?.value ?? '');
+      // Also load all tags for the sidebar filter
+      loadAllTagsForSearchSidebar();
     }
     
     // If user opens Save tab, ensure tag autocomplete is initialized
@@ -515,27 +518,55 @@ async function runSearch(query: string, tagFilter?: string[]) {
 }
 
 function updateTagsList(results: SearchResultItem[]) {
-  const tagsContainer = document.getElementById('search-tags-list');
-  if (!tagsContainer) return;
-
-  // Collect all unique tags from results
-  const allTags = new Set<string>();
+  // This function now only updates the checkbox states based on search results
+  // The full tag list is loaded by loadAllTagsForSearchSidebar()
+  
+  // Collect tags from current results to potentially add new ones
+  const resultTags = new Set<string>();
   results.forEach((item) => {
     if (Array.isArray(item.tags)) {
-      item.tags.forEach((tag) => allTags.add(tag));
+      item.tags.forEach((tag) => resultTags.add(tag));
     }
   });
 
-  // Sort tags alphabetically
-  const sortedTags = Array.from(allTags).sort((a, b) => a.localeCompare(b));
+  // Add any new tags from results to allAvailableTags
+  resultTags.forEach((tag) => {
+    if (!allAvailableTags.includes(tag)) {
+      allAvailableTags.push(tag);
+    }
+  });
+  allAvailableTags.sort((a, b) => a.localeCompare(b));
+}
 
-  // Update global available tags list for autocomplete
-  allAvailableTags = sortedTags;
+/**
+ * Load all tags for the search sidebar filter
+ * This shows all available tags, not just those from current search results
+ */
+function loadAllTagsForSearchSidebar() {
+  chrome.runtime.sendMessage({ action: 'getAllTags' }, (response: any) => {
+    if (chrome.runtime.lastError || response?.error) {
+      console.warn('[Search Sidebar] Error loading tags:', response?.error || chrome.runtime.lastError);
+      return;
+    }
+    const tags = Array.isArray(response?.tags) ? response.tags : [];
+    // Update the sidebar with all tags
+    renderSearchSidebarTags(tags);
+  });
+}
 
-  // Clear and rebuild tags list
+/**
+ * Render tags in the search sidebar
+ */
+function renderSearchSidebarTags(tags: string[]) {
+  const tagsContainer = document.getElementById('search-tags-list');
+  if (!tagsContainer) return;
+
+  // Also update allAvailableTags for autocomplete
+  allAvailableTags = tags;
+
   tagsContainer.innerHTML = '';
 
-  if (sortedTags.length === 0) {
+  if (tags.length === 0) {
     const empty = document.createElement('div');
     empty.style.fontSize = '11px';
     empty.style.color = '#999';
@@ -544,7 +575,7 @@ function updateTagsList(results: SearchResultItem[]) {
     return;
   }
 
-  sortedTags.forEach((tag) => {
+  tags.forEach((tag) => {
     const tagItem = document.createElement('div');
     tagItem.style.display = 'flex';
     tagItem.style.alignItems = 'center';
@@ -559,6 +590,12 @@ function updateTagsList(results: SearchResultItem[]) {
     checkbox.checked = selectedTags.has(tag);
     checkbox.style.margin = '0';
     checkbox.style.cursor = 'pointer';
+
+    // Apply selected style if already selected
+    if (selectedTags.has(tag)) {
+      tagItem.style.background = '#e3f2fd';
+      tagItem.style.color = '#1976d2';
+    }
 
     const label = document.createElement('label');
     label.textContent = tag;

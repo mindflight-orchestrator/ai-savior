@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite';
 import webExtension from 'vite-plugin-web-extension';
 import { resolve } from 'path';
-import { copyFileSync, mkdirSync, existsSync, readFileSync, writeFileSync } from 'fs';
+import { copyFileSync, mkdirSync, existsSync, readFileSync, writeFileSync, readdirSync } from 'fs';
 
 export default defineConfig({
   plugins: [
@@ -19,6 +19,7 @@ export default defineConfig({
           mkdirSync(distIconsDir, { recursive: true });
         }
         
+        // Copy main icons
         ['icon16.png', 'icon48.png', 'icon128.png'].forEach((icon) => {
           const src = resolve(iconsDir, icon);
           const dest = resolve(distIconsDir, icon);
@@ -27,6 +28,22 @@ export default defineConfig({
             console.log(`✓ Copied ${icon} to dist/icons/`);
           }
         });
+
+        // Copy favicons folder
+        const faviconsDir = resolve(iconsDir, 'favicons');
+        const distFaviconsDir = resolve(distIconsDir, 'favicons');
+        if (existsSync(faviconsDir)) {
+          if (!existsSync(distFaviconsDir)) {
+            mkdirSync(distFaviconsDir, { recursive: true });
+          }
+          const faviconFiles = readdirSync(faviconsDir);
+          faviconFiles.forEach((file) => {
+            const src = resolve(faviconsDir, file);
+            const dest = resolve(distFaviconsDir, file);
+            copyFileSync(src, dest);
+          });
+          console.log(`✓ Copied ${faviconFiles.length} favicons to dist/icons/favicons/`);
+        }
 
         // Corriger le chemin du script dans popup.html
         const popupHtmlPath = resolve(__dirname, 'dist', 'src', 'popup', 'popup.html');

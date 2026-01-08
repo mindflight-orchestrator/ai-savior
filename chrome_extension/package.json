@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite build --watch --mode development",
-    "build": "tsc && vite build",
+    "build": "tsc && vite build && npm run copy-favicons",
+    "copy-favicons": "mkdir -p ../dist/icons/favicons && cp icons/favicons/*.ico ../dist/icons/favicons/",
     "preview": "vite preview",
     "icons": "node scripts/generate-icons.js",
     "download-favicons": "node scripts/download-favicons.js",
