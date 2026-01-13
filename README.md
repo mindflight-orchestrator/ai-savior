@@ -32,24 +32,6 @@ npm run dev
 npm run build
 ```
 
-### Créer les icônes
-
-Avant de charger l'extension, vous devez créer les icônes PNG requises :
-
-**Option 1 : Générateur HTML (recommandé pour débuter)**
-1. Ouvrir `icons/create-placeholder-icons.html` dans votre navigateur
-2. Cliquer sur les boutons pour télécharger les 3 icônes PNG
-3. Placer les fichiers téléchargés dans le dossier `icons/`
-
-**Option 2 : Script Node.js (si sharp est installé)**
-```bash
-npm install --save-dev sharp
-npm run icons
-```
-
-**Option 3 : Depuis le SVG**
-Voir `icons/README.md` pour d'autres méthodes de conversion.
-
 ### Charger l'extension dans Chrome
 
 1. Ouvrir Chrome et aller à `chrome://extensions/`
@@ -84,9 +66,9 @@ L'extension suit une architecture modulaire :
 
 Voir `docker/README.md` pour les instructions Docker (Phase 12 du plan d'implémentation).
 
-## Plan d'implémentation
+## GUIDE D'UTILISATION
 
-Voir `doc/plan_implementation.md` pour le plan complet d'implémentation.
+Voir `doc/GUIDE_UTILISATION.md` pour le  guide.
 
 ## License
 
