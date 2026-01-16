@@ -105,6 +105,18 @@ async function extractConversation(): Promise<any> {
       message: '/html/body/div[2]/div[2]/div/div/main/div[2]/div[2]/div',
       conversation: '//title',
     },
+    'www.perplexity.ai': {
+      title: 'documentTitle',
+      // Perplexity messages container
+      message: '//*[@id="root"]/div[1]/div/div/div[2]/div/div[1]/div[1]/div[3]/div/div[1]/div/div[2]/div/div/div/div/div',
+      conversation: '//title',
+    },
+    'perplexity.ai': {
+      title: 'documentTitle',
+      // Perplexity messages container (same as www)
+      message: '//*[@id="root"]/div[1]/div/div/div[2]/div/div[1]/div[1]/div[3]/div/div[1]/div/div[2]/div/div/div/div/div',
+      conversation: '//title',
+    },
   };
 
   try {

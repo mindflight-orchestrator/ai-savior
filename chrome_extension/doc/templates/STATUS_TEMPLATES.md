@@ -34,6 +34,7 @@ Ce document liste tous les domaines supportés par l'extension et leur statut co
 
 **Status** : ✅ Fonctionnel - Template disponible et extraction configurée
 **Template** : `perplexity.html` existe
+**XPath** : `//*[@id="root"]/div[1]/div/div/div[2]/div/div[1]/div[1]/div[3]/div/div[1]/div/div[2]/div/div/div/div/div`
 **Note** : `perplexity.ai` (sans www) n'est pas dans les settings par défaut
 
 ---

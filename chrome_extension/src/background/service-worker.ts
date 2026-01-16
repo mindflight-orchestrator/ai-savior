@@ -215,7 +215,8 @@ async function processBeastMode(tabId: number, url: string): Promise<void> {
       }
 
       // Prepare conversation object
-      const title = extracted.title || 'Untitled Conversation';
+      // Preserve existing title if conversation already exists (to avoid overwriting custom titles)
+      const title = existing?.title || extracted.title || 'Untitled Conversation';
       const content = extracted.content || '';
       const description = extracted.description || '';
 
@@ -502,6 +503,10 @@ async function handleSaveConversation(payload: any, sendResponse: (response: any
 
     const canonical_url = normalizeUrl(tab.url);
 
+    // Check if conversation already exists to preserve existing title
+    const provider = await getProvider();
+    const existing = await provider.getConversationByUrl(canonical_url);
+
     // Ask content script to extract
     try {
       await ensureContentScript(tabId);
@@ -525,9 +530,10 @@ async function handleSaveConversation(payload: any, sendResponse: (response: any
     const descOverride = typeof payload?.description === 'string' ? payload.description.trim() : '';
     const tagsOverride = Array.isArray(payload?.tags) ? payload.tags.filter((t: any) => typeof t === 'string') : [];
 
-    const title = titleOverride || extracted.title || 'Untitled Conversation';
+    // Preserve existing title if conversation exists and no explicit title override is provided
+    const title = titleOverride || existing?.title || extracted.title || 'Untitled Conversation';
     const content = extracted.content || '';
-    const description = descOverride || extracted.description || '';
+    const description = descOverride || existing?.description || extracted.description || '';
 
     const conv: Conversation = {
       canonical_url,
@@ -536,15 +542,14 @@ async function handleSaveConversation(payload: any, sendResponse: (response: any
       title,
       description,
       content,
-      tags: tagsOverride,
-      collection_id: undefined,
-      ignore: false,
-      version: 1,
-      created_at: new Date(),
+      tags: tagsOverride.length > 0 ? tagsOverride : existing?.tags || [],
+      collection_id: existing?.collection_id,
+      ignore: existing?.ignore ?? false,
+      version: existing ? existing.version + 1 : 1,
+      created_at: existing?.created_at || new Date(),
       updated_at: new Date(),
     };
 
-    const provider = await getProvider();
     const saved = await provider.saveConversation(conv);
     sendResponse({ success: true, conversation: saved });
   } catch (error) {
