@@ -11,7 +11,8 @@
       "test": "playwright test",
       "test:ui": "playwright test --ui",
       "test:headed": "playwright test --headed",
-      "test:debug": "playwright test --debug"
+      "test:debug": "playwright test --debug",
+      "validate:selectors": "tsx scripts/validate-extractor-selectors.ts"
     },
     "keywords": [
       "chrome-extension",
@@ -28,7 +29,8 @@
       "@types/node": "^20.10.6",
       "typescript": "^5.3.3",
       "vite": "^5.0.11",
-      "vite-plugin-web-extension": "^4.1.1"
+      "vite-plugin-web-extension": "^4.1.1",
+      "tsx": "^4.7.0"
     },
     "dependencies": {}
   }

@@ -188,3 +188,17 @@ All per-website patterns are also stored in **`config/extractor-defaults.json`**
 - Use it as the single source of truth and, if desired, generate or sync `extractor.ts` `defaultsByDomain` from it (e.g. via a small script or build step).
 
 See **`chrome_extension/config/extractor-defaults.json`** for the current entries. Each host entry has: `source`, `title`, `conversation`, `message`, `selectorType`, `inManifest`, `inUrlDetector`, `notes`. The extractor loads this file at **build time** (it is bundled into the content script). Edit the JSON, then run `pnpm run build` (or your build command) to recompile; no code change in `extractor.ts` is required.
+
+### Validating selectors (Playwright)
+
+From the **repo root**, you can validate that all configured XPaths work on the live sites:
+
+```bash
+pnpm run validate:selectors
+```
+
+This script (in `scripts/validate-extractor-selectors.ts`) visits each host from `extractor-defaults.json`, evaluates the `conversation` and `message` XPaths in the page context, and prints a report. It also writes **`chrome_extension/doc/extractor-validation-report.md`**.
+
+- **HEADED=1**: Run the browser in headed mode (recommended if you see **CLOUDFLARE** in the report).
+- Many sites are behind **Cloudflare** or similar protection. The script detects challenge pages and reports status **CLOUDFLARE** when the page is a "Checking your browser" / access-protection screen rather than the real app. It uses launch args to reduce bot detection; if you still get CLOUDFLARE, use `HEADED=1` or run with system Chrome.
+- Many sites require login, so "0 nodes" often means "login wall" rather than a broken selector.

@@ -1,7 +1,7 @@
 {
-  "description": "Single source of truth for extraction patterns. Each key under hosts is hostname (window.location.hostname). Sync or generate extractor.ts defaultsByDomain from this. Update url-detector.ts and manifest.json when adding hosts.",
+  "description": "Single source of truth for extraction patterns. Each key under hosts is hostname (window.location.hostname). Sync or generate extractor.ts defaultsByDomain from this. Update url-detector.ts and manifest.json when adding hosts. Prefer semantic/stable selectors (Principles Step 2).",
   "selectorTypes": {
-    "semantic": "Attribute-based (e.g. data-message-author-role); most stable",
+    "semantic": "Attribute-based (e.g. data-message-author-role, data-testid); most stable",
     "id": "Single element ID; stable only if app never changes it",
     "absolutePath": "Full path from document root; breaks on DOM change",
     "special": "Custom function in extractor (e.g. __kimi_special__)"
@@ -15,7 +15,7 @@
       "selectorType": "semantic",
       "inManifest": true,
       "inUrlDetector": true,
-      "notes": "Stable; works well."
+      "notes": "Stable; one selector per message (Principles Step 2)."
     },
     "chatgpt.com": {
       "source": "chatgpt",
@@ -41,11 +41,11 @@
       "source": "claude",
       "title": "documentTitle",
       "conversation": "//title",
-      "message": "",
-      "selectorType": "",
+      "message": "//*[@data-testid=\"user-message\"] | //p[contains(@class,'font-claude-response-body')]",
+      "selectorType": "semantic",
       "inManifest": true,
       "inUrlDetector": true,
-      "notes": "Missing in extractor.ts; add message XPath or special handler."
+      "notes": "Semantic: user-message + assistant response paragraphs (from template; Principles Step 2)."
     },
     "www.perplexity.ai": {
       "source": "perplexity",
@@ -55,7 +55,7 @@
       "selectorType": "absolutePath",
       "inManifest": true,
       "inUrlDetector": true,
-      "notes": "Brittle; consider semantic selector if available."
+      "notes": "Brittle; no semantic message container in template—check data-testid on live page (Principles Step 2)."
     },
     "perplexity.ai": {
       "source": "other",
@@ -85,7 +85,7 @@
       "selectorType": "special",
       "inManifest": true,
       "inUrlDetector": true,
-      "notes": "Uses extractKimiContent() with multiple fallbacks."
+      "notes": "Uses extractKimiContent(); update first XPath in function to stable selector if site changes (Principles Step 5)."
     },
     "kimi.com": {
       "source": "kimi",
@@ -101,11 +101,11 @@
       "source": "mistral",
       "title": "documentTitle",
       "conversation": "//title",
-      "message": "/html/body/main/div/div[1]/div/main/div/div/div/div/div[2]/div/div[2]/div[1]/div/div/div/div/div[1]/div[1]/div/div/div[1]",
-      "selectorType": "absolutePath",
+      "message": "//p[@dir=\"auto\" and contains(@class,'whitespace-break-spaces')]",
+      "selectorType": "semantic",
       "inManifest": true,
       "inUrlDetector": true,
-      "notes": "Brittle; long path from html."
+      "notes": "Semantic: message paragraphs by dir and class (from template; Principles Step 2)."
     },
     "chat.deepseek.com": {
       "source": "deepseek",
@@ -115,7 +115,7 @@
       "selectorType": "special",
       "inManifest": true,
       "inUrlDetector": true,
-      "notes": "Uses extractDeepSeekContent() with multiple fallbacks."
+      "notes": "Uses extractDeepSeekContent(); update first XPath in function to stable selector if site changes (Principles Step 5)."
     },
     "chat.qwen.ai": {
       "source": "qwen",
@@ -125,7 +125,7 @@
       "selectorType": "id",
       "inManifest": true,
       "inUrlDetector": true,
-      "notes": "ID-based; can break if ID changes."
+      "notes": "Stable ID; one container—extractor iterates children. Can break if app renames ID."
     },
     "manus.im": {
       "source": "manus",
@@ -135,17 +135,17 @@
       "selectorType": "id",
       "inManifest": true,
       "inUrlDetector": true,
-      "notes": "ID-based."
+      "notes": "Stable ID; one container. Can break if app renames ID."
     },
     "grok.com": {
       "source": "grok",
       "title": "documentTitle",
       "conversation": "//title",
-      "message": "/html/body/div[2]/div[2]/div/div/main/div[2]/div[2]/div",
-      "selectorType": "absolutePath",
+      "message": "//p[@dir=\"auto\" and contains(@class,'break-words')]",
+      "selectorType": "semantic",
       "inManifest": true,
       "inUrlDetector": true,
-      "notes": "Brittle; absolute path."
+      "notes": "Semantic: message paragraphs by dir and class (from template; was absolute path)."
     }
   }
 }

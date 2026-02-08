@@ -34,8 +34,8 @@ Ce document liste tous les domaines supportés par l'extension et leur statut co
 
 **Status** : ✅ Fonctionnel - Template disponible et extraction configurée
 **Template** : `perplexity.html` existe
-**XPath** : `//*[@id="root"]/div[1]/div/div/div[2]/div/div[1]/div[1]/div[3]/div/div[1]/div/div[2]/div/div/div/div/div`
-**Note** : `perplexity.ai` (sans www) n'est pas dans les settings par défaut
+**XPath** : Long absolute path from `#root` (brittle)
+**Note** : No semantic message container in template—check data-testid on live page (Principles Step 2). `perplexity.ai` (sans www) n'est pas dans les settings par défaut
 
 ---
 
@@ -61,8 +61,8 @@ Ce document liste tous les domaines supportés par l'extension et leur statut co
 
 **Status** : ✅ Fonctionnel - Template disponible et extraction configurée
 **Template** : `claude.html` existe
-**XPath** : Utilise le conteneur `main-content` avec extraction des messages utilisateur et réponses Claude
-**Note** : Extraction basée sur `data-testid="user-message"` et `font-claude-response` classes
+**XPath** : `//*[@data-testid="user-message"] | //p[contains(@class,'font-claude-response-body')]` (semantic)
+**Note** : Semantic selector—one node per user message and per assistant paragraph (Principles Step 2)
 
 ---
 
@@ -74,7 +74,8 @@ Ce document liste tous les domaines supportés par l'extension et leur statut co
 
 **Status** : ✅ Fonctionnel - Template disponible et extraction configurée
 **Template** : `mistral.html` existe
-**XPath** : `/html/body/main/div/div[1]/div/main/div/div/div/div/div[2]/div/div[2]/div[1]/div/div/div/div/div[1]/div[1]/div/div/div[1]`
+**XPath** : `//p[@dir="auto" and contains(@class,'whitespace-break-spaces')]` (semantic)
+**Note** : Semantic selector from template—message paragraphs by dir and class (Principles Step 2)
 
 ---
 
@@ -122,7 +123,8 @@ Ce document liste tous les domaines supportés par l'extension et leur statut co
 
 **Status** : ✅ Fonctionnel - Template disponible et extraction configurée
 **Template** : `grok.html` existe
-**XPath** : `/html/body/div[2]/div[2]/div/div/main/div[2]/div[2]/div`
+**XPath** : `//p[@dir="auto" and contains(@class,'break-words')]` (semantic)
+**Note** : Semantic selector from template—message paragraphs; was absolute path (Principles Step 2)
 
 ---
 
