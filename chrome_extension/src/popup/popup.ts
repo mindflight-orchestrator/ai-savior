@@ -110,46 +110,17 @@ window.addEventListener('resize', () => {
 });
 
 // Initialize favicons visibility on load (will be called after DOMContentLoaded)
-// Handle favicon loading - try local first, then remote, keep link visible always
+// Handle favicon loading from extension bundle
 function initFavicons() {
   const faviconLinks = document.querySelectorAll('.chat-favicon');
   faviconLinks.forEach((link) => {
     const imageElement = link.querySelector('img') as HTMLImageElement;
     if (!imageElement) return;
-    
-    const faviconName = link.getAttribute('data-favicon');
-    const remoteUrl = imageElement.getAttribute('data-remote');
-    
-    if (!faviconName || !remoteUrl) return;
-    
-    // Try local favicon first
-    const localFavicon = chrome.runtime.getURL(`icons/favicons/${faviconName}.ico`);
-    const testImg = new Image();
-    
-    testImg.onload = () => {
-      // Local favicon exists, use it
-      imageElement.src = localFavicon;
-    };
-    
-    testImg.onerror = () => {
-      // Local doesn't exist, show fallback indicator directly
-      // Don't try to load remote favicons to avoid unnecessary network requests
-      imageElement.style.display = 'none';
-      if (!link.querySelector('.favicon-fallback')) {
-        const fallback = document.createElement('span');
-        fallback.className = 'favicon-fallback';
-        fallback.textContent = '●';
-        fallback.style.cssText = 'font-size: 8px; color: #999; display: inline-block; width: 16px; height: 16px; line-height: 16px; text-align: center;';
-        // Copy the title attribute from the parent link for tooltip
-        const linkTitle = link.getAttribute('title');
-        if (linkTitle) {
-          fallback.setAttribute('title', linkTitle);
-        }
-        link.appendChild(fallback);
-      }
-    };
-    
-    testImg.src = localFavicon;
+
+    const localFile = imageElement.getAttribute('data-local');
+    if (!localFile) return;
+
+    imageElement.src = chrome.runtime.getURL(`icons/favicons/${localFile}`);
   });
 }
 
