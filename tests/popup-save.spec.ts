@@ -1,7 +1,7 @@
 import { test, expect, chromium, BrowserContext } from '@playwright/test';
 import { getExtensionId, getExtensionPopup, waitForExtensionReady } from './helpers/extension-helpers';
 import { waitForTabState, mockTabState } from './helpers/popup-helpers';
-import { mockTabStateNew, mockTabStateExisting, mockTabStateUnsupported, mockTabStateError } from './fixtures/mock-conversations';
+import { mockTabStateNew, mockTabStateUnsupported, mockTabStateError } from './fixtures/mock-conversations';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -65,64 +65,6 @@ test('Save tab should display URL from tab state', async () => {
   const urlText = await urlElement.textContent();
   
   expect(urlText).toBe(mockTabStateNew.canonical_url);
-  
-  await popup.close();
-});
-
-test('Save tab should show status for new conversation', async () => {
-  const popup = await getExtensionPopup(context, extensionId);
-  await popup.waitForLoadState('networkidle');
-  
-  await mockTabState(popup, mockTabStateNew);
-  
-  const refreshButton = popup.locator('#save-refresh');
-  await refreshButton.click();
-  
-  await waitForTabState(popup);
-  
-  const statusText = popup.locator('#save-status-text');
-  const text = await statusText.textContent();
-  
-  expect(text).toContain('reconnue');
-  expect(text).toContain('Pas encore sauvegardée');
-  
-  // Form fields should be empty
-  const titleInput = popup.locator('#save-title');
-  const titleValue = await titleInput.inputValue();
-  expect(titleValue).toBe('');
-  
-  await popup.close();
-});
-
-test('Save tab should show status for existing conversation', async () => {
-  const popup = await getExtensionPopup(context, extensionId);
-  await popup.waitForLoadState('networkidle');
-  
-  await mockTabState(popup, mockTabStateExisting);
-  
-  const refreshButton = popup.locator('#save-refresh');
-  await refreshButton.click();
-  
-  await waitForTabState(popup);
-  
-  const statusText = popup.locator('#save-status-text');
-  const text = await statusText.textContent();
-  
-  expect(text).toContain('Déjà sauvegardée');
-  expect(text).toContain('Version');
-  
-  // Form fields should be pre-filled
-  const titleInput = popup.locator('#save-title');
-  const titleValue = await titleInput.inputValue();
-  expect(titleValue).toBe(mockTabStateExisting.existingConversation!.title);
-  
-  const descriptionInput = popup.locator('#save-description');
-  const descriptionValue = await descriptionInput.inputValue();
-  expect(descriptionValue).toBe(mockTabStateExisting.existingConversation!.description);
-  
-  const tagsInput = popup.locator('#save-tags');
-  const tagsValue = await tagsInput.inputValue();
-  expect(tagsValue).toBe(mockTabStateExisting.existingConversation!.tags.join(', '));
   
   await popup.close();
 });

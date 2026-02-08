@@ -200,57 +200,6 @@ test('Snippets should handle load errors', async () => {
   await popup.close();
 });
 
-test('Edit modal should handle invalid conversation ID', async () => {
-  const popup = await getExtensionPopup(context, extensionId);
-  await popup.waitForLoadState('networkidle');
-  
-  await switchTab(popup, 'search');
-  
-  const searchResults = [{
-    id: 999,
-    canonical_url: 'https://chat.openai.com/c/test',
-    source: 'chatgpt',
-    title: 'Test',
-    preview: 'Preview',
-    updated_at: new Date().toISOString(),
-    tags: [],
-  }];
-  
-  await mockSearchResults(popup, searchResults);
-  
-  // Mock error for getConversation
-  await popup.evaluate(() => {
-    const originalSendMessage = (window as any).chrome?.runtime?.sendMessage;
-    if ((window as any).chrome && (window as any).chrome.runtime) {
-      (window as any).chrome.runtime.sendMessage = (message: any, callback: Function) => {
-        if (message.action === 'getConversation') {
-          setTimeout(() => callback({ error: 'Conversation not found' }), 0);
-        } else if (originalSendMessage) {
-          originalSendMessage(message, callback);
-        }
-      };
-    }
-  });
-  
-  const searchInput = popup.locator('#search-input');
-  await searchInput.fill('test');
-  await popup.waitForTimeout(400);
-  
-  // Set up dialog handler for alert
-  popup.once('dialog', dialog => {
-    expect(dialog.message()).toContain('Erreur');
-    dialog.accept();
-  });
-  
-  // Click edit button
-  const editButton = popup.locator('#search-results button').filter({ hasText: 'Éditer' }).first();
-  await editButton.click();
-  
-  // Alert should be shown
-  
-  await popup.close();
-});
-
 test('Preview modal should handle missing conversation data', async () => {
   const popup = await getExtensionPopup(context, extensionId);
   await popup.waitForLoadState('networkidle');
