@@ -37,7 +37,7 @@ test('Extension should load successfully', async () => {
   // Verify extension is loaded by checking manifest
   const manifest = await getExtensionManifest(context, extensionId);
   
-  expect(manifest.name).toBe('AI Saver');
+  expect(manifest.name).toBe('AI Savior');
   expect(manifest.version).toBeDefined();
   expect(manifest.manifest_version).toBe(3);
 });

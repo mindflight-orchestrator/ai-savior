@@ -4,8 +4,8 @@
     "description": "Chrome extension to automatically save AI conversations from ChatGPT, Claude, Perplexity, and Kimi",
     "type": "module",
     "scripts": {
-      "dev": "vite build --watch --mode development",
-      "build": "tsc && vite build",
+      "dev": "npm run dev --prefix chrome_extension",
+      "build": "npm run build --prefix chrome_extension",
       "preview": "vite preview",
       "icons": "node scripts/generate-icons.js",
       "test": "playwright test",
