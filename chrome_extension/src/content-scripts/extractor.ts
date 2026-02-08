@@ -1,7 +1,30 @@
 /**
  * Content Script - Conversation Extractor
  * Extracts conversation content from AI platforms using XPath
+ * Defaults are loaded from config/extractor-defaults.json at build time.
  */
+
+import extractorDefaults from '../../config/extractor-defaults.json';
+
+type DefaultsEntry = { title: 'documentTitle' | 'xpath'; conversation?: string; message?: string };
+
+/** Build defaultsByDomain from config/extractor-defaults.json (bundled at build time) */
+function buildDefaultsFromConfig(): Record<string, DefaultsEntry> {
+  const hosts = (extractorDefaults as { hosts: Record<string, { title: string; conversation?: string; message?: string }> }).hosts;
+  const out: Record<string, DefaultsEntry> = {};
+  for (const [host, cfg] of Object.entries(hosts)) {
+    if (!cfg) continue;
+    const title = cfg.title === 'documentTitle' || cfg.title === 'xpath' ? cfg.title : 'documentTitle';
+    out[host] = {
+      title,
+      conversation: cfg.conversation,
+      message: cfg.message,
+    };
+  }
+  return out;
+}
+
+const defaultsByDomainFromConfig = buildDefaultsFromConfig();
 
 // Listen for messages from service worker
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -43,81 +66,8 @@ async function extractConversation(): Promise<any> {
   const settings = await chrome.storage.local.get(['xpaths_by_domain']);
   const xpaths = settings.xpaths_by_domain?.[domain];
 
-  // Built-in defaults (minimal) so the extension works out-of-the-box
-  // Note: these selectors may need adjustment over time.
-  const defaultsByDomain: Record<string, { title: 'documentTitle' | 'xpath'; conversation?: string; message?: string }> = {
-    'chat.openai.com': {
-      title: 'documentTitle',
-      // ChatGPT messages container often has data-message-author-role
-      message: '//div[@data-message-author-role]',
-      // optional: conversation root (not used right now)
-      conversation: '//title',
-    },
-    'chatgpt.com': {
-      title: 'documentTitle',
-      message: '//div[@data-message-author-role]',
-      conversation: '//title',
-    },
-    'www.chatgpt.com': {
-      title: 'documentTitle',
-      message: '//div[@data-message-author-role]',
-      conversation: '//title',
-    },
-    'www.kimi.com': {
-      title: 'documentTitle',
-      // Use special extraction for Kimi
-      message: '__kimi_special__',
-      conversation: '//title',
-    },
-    'kimi.com': {
-      title: 'documentTitle',
-      // Use special extraction for Kimi
-      message: '__kimi_special__',
-      conversation: '//title',
-    },
-    'chat.deepseek.com': {
-      title: 'documentTitle',
-      // Use special extraction for DeepSeek
-      message: '__deepseek_special__',
-      conversation: '//title',
-    },
-    'chat.mistral.ai': {
-      title: 'documentTitle',
-      // Mistral messages container
-      message: '/html/body/main/div/div[1]/div/main/div/div/div/div/div[2]/div/div[2]/div[1]/div/div/div/div/div[1]/div[1]/div/div/div[1]',
-      conversation: '//title',
-    },
-    'chat.qwen.ai': {
-      title: 'documentTitle',
-      // Qwen messages container
-      message: '//*[@id="chat-message-container"]',
-      conversation: '//title',
-    },
-    'manus.im': {
-      title: 'documentTitle',
-      // Manus messages container
-      message: '//*[@id="manus-home-page-session-content"]',
-      conversation: '//title',
-    },
-    'grok.com': {
-      title: 'documentTitle',
-      // Grok messages container
-      message: '/html/body/div[2]/div[2]/div/div/main/div[2]/div[2]/div',
-      conversation: '//title',
-    },
-    'www.perplexity.ai': {
-      title: 'documentTitle',
-      // Perplexity messages container
-      message: '//*[@id="root"]/div[1]/div/div/div[2]/div/div[1]/div[1]/div[3]/div/div[1]/div/div[2]/div/div/div/div/div',
-      conversation: '//title',
-    },
-    'perplexity.ai': {
-      title: 'documentTitle',
-      // Perplexity messages container (same as www)
-      message: '//*[@id="root"]/div[1]/div/div/div[2]/div/div[1]/div[1]/div[3]/div/div[1]/div/div[2]/div/div/div/div/div',
-      conversation: '//title',
-    },
-  };
+  // Defaults from config/extractor-defaults.json (bundled at build time)
+  const defaultsByDomain = defaultsByDomainFromConfig;
 
   try {
     const defaults = defaultsByDomain[domain];

@@ -1,0 +1,151 @@
+{
+  "description": "Single source of truth for extraction patterns. Each key under hosts is hostname (window.location.hostname). Sync or generate extractor.ts defaultsByDomain from this. Update url-detector.ts and manifest.json when adding hosts.",
+  "selectorTypes": {
+    "semantic": "Attribute-based (e.g. data-message-author-role); most stable",
+    "id": "Single element ID; stable only if app never changes it",
+    "absolutePath": "Full path from document root; breaks on DOM change",
+    "special": "Custom function in extractor (e.g. __kimi_special__)"
+  },
+  "hosts": {
+    "chat.openai.com": {
+      "source": "chatgpt",
+      "title": "documentTitle",
+      "conversation": "//title",
+      "message": "//div[@data-message-author-role]",
+      "selectorType": "semantic",
+      "inManifest": true,
+      "inUrlDetector": true,
+      "notes": "Stable; works well."
+    },
+    "chatgpt.com": {
+      "source": "chatgpt",
+      "title": "documentTitle",
+      "conversation": "//title",
+      "message": "//div[@data-message-author-role]",
+      "selectorType": "semantic",
+      "inManifest": true,
+      "inUrlDetector": true,
+      "notes": "Same as chat.openai.com."
+    },
+    "www.chatgpt.com": {
+      "source": "chatgpt",
+      "title": "documentTitle",
+      "conversation": "//title",
+      "message": "//div[@data-message-author-role]",
+      "selectorType": "semantic",
+      "inManifest": true,
+      "inUrlDetector": true,
+      "notes": "Same as chat.openai.com."
+    },
+    "claude.ai": {
+      "source": "claude",
+      "title": "documentTitle",
+      "conversation": "//title",
+      "message": "",
+      "selectorType": "",
+      "inManifest": true,
+      "inUrlDetector": true,
+      "notes": "Missing in extractor.ts; add message XPath or special handler."
+    },
+    "www.perplexity.ai": {
+      "source": "perplexity",
+      "title": "documentTitle",
+      "conversation": "//title",
+      "message": "//*[@id=\"root\"]/div[1]/div/div/div[2]/div/div[1]/div[1]/div[3]/div/div[1]/div/div[2]/div/div/div/div/div",
+      "selectorType": "absolutePath",
+      "inManifest": true,
+      "inUrlDetector": true,
+      "notes": "Brittle; consider semantic selector if available."
+    },
+    "perplexity.ai": {
+      "source": "other",
+      "title": "documentTitle",
+      "conversation": "//title",
+      "message": "//*[@id=\"root\"]/div[1]/div/div/div[2]/div/div[1]/div[1]/div[3]/div/div[1]/div/div[2]/div/div/div/div/div",
+      "selectorType": "absolutePath",
+      "inManifest": false,
+      "inUrlDetector": false,
+      "notes": "In extractor only; add to manifest + url-detector to enable Beast Mode."
+    },
+    "kimi.moonshot.cn": {
+      "source": "kimi",
+      "title": "documentTitle",
+      "conversation": "//title",
+      "message": "",
+      "selectorType": "",
+      "inManifest": true,
+      "inUrlDetector": true,
+      "notes": "Missing in extractor.ts; add __kimi_special__ or XPath."
+    },
+    "www.kimi.com": {
+      "source": "kimi",
+      "title": "documentTitle",
+      "conversation": "//title",
+      "message": "__kimi_special__",
+      "selectorType": "special",
+      "inManifest": true,
+      "inUrlDetector": true,
+      "notes": "Uses extractKimiContent() with multiple fallbacks."
+    },
+    "kimi.com": {
+      "source": "kimi",
+      "title": "documentTitle",
+      "conversation": "//title",
+      "message": "__kimi_special__",
+      "selectorType": "special",
+      "inManifest": true,
+      "inUrlDetector": true,
+      "notes": "Same as www.kimi.com."
+    },
+    "chat.mistral.ai": {
+      "source": "mistral",
+      "title": "documentTitle",
+      "conversation": "//title",
+      "message": "/html/body/main/div/div[1]/div/main/div/div/div/div/div[2]/div/div[2]/div[1]/div/div/div/div/div[1]/div[1]/div/div/div[1]",
+      "selectorType": "absolutePath",
+      "inManifest": true,
+      "inUrlDetector": true,
+      "notes": "Brittle; long path from html."
+    },
+    "chat.deepseek.com": {
+      "source": "deepseek",
+      "title": "documentTitle",
+      "conversation": "//title",
+      "message": "__deepseek_special__",
+      "selectorType": "special",
+      "inManifest": true,
+      "inUrlDetector": true,
+      "notes": "Uses extractDeepSeekContent() with multiple fallbacks."
+    },
+    "chat.qwen.ai": {
+      "source": "qwen",
+      "title": "documentTitle",
+      "conversation": "//title",
+      "message": "//*[@id=\"chat-message-container\"]",
+      "selectorType": "id",
+      "inManifest": true,
+      "inUrlDetector": true,
+      "notes": "ID-based; can break if ID changes."
+    },
+    "manus.im": {
+      "source": "manus",
+      "title": "documentTitle",
+      "conversation": "//title",
+      "message": "//*[@id=\"manus-home-page-session-content\"]",
+      "selectorType": "id",
+      "inManifest": true,
+      "inUrlDetector": true,
+      "notes": "ID-based."
+    },
+    "grok.com": {
+      "source": "grok",
+      "title": "documentTitle",
+      "conversation": "//title",
+      "message": "/html/body/div[2]/div[2]/div/div/main/div[2]/div[2]/div",
+      "selectorType": "absolutePath",
+      "inManifest": true,
+      "inUrlDetector": true,
+      "notes": "Brittle; absolute path."
+    }
+  }
+}
