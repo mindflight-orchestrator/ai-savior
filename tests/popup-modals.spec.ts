@@ -262,8 +262,10 @@ test('Edit modal should pre-fill form with conversation data', async () => {
   
   await waitForModal(popup, 'edit-modal');
   
-  // Check form fields
+  // Form is filled asynchronously by getConversation callback; wait for pre-fill
   const editTitle = popup.locator('#edit-title');
+  await expect(editTitle).toHaveValue(mockConversations[0].title, { timeout: 5000 });
+  
   const titleValue = await editTitle.inputValue();
   expect(titleValue).toBe(mockConversations[0].title);
   

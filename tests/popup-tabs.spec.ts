@@ -159,24 +159,25 @@ test('Settings back button should return to tabs view', async () => {
   await popup.close();
 });
 
-test('Window should resize to large view when Search tab is active', async () => {
+test('Window should keep large view when Search tab is active', async () => {
   const popup = await getExtensionPopup(context, extensionId);
   await popup.waitForLoadState('networkidle');
   
-  // Default size (Save tab)
+  // Default size (Save tab) - all tabs use large view
   const defaultWidth = await getPopupWidth(popup);
-  expect(defaultWidth).toBeLessThanOrEqual(400);
+  expect(defaultWidth).toBeGreaterThan(400);
   
   const hasLarge = await hasLargeView(popup);
-  expect(hasLarge).toBe(false);
+  expect(hasLarge).toBe(true);
   
-  // Switch to Search tab
+  // Switch to Search tab (same large view)
   await switchTab(popup, 'search');
   
   // Wait a bit for transition
   await popup.waitForTimeout(300);
   
   const searchWidth = await getPopupWidth(popup);
+  expect(searchWidth).toBe(defaultWidth);
   expect(searchWidth).toBeGreaterThan(400);
   
   const hasLargeAfter = await hasLargeView(popup);
@@ -185,7 +186,7 @@ test('Window should resize to large view when Search tab is active', async () =>
   await popup.close();
 });
 
-test('Window should return to small view when leaving Search tab', async () => {
+test('Window should keep same size when switching from Search to Save tab', async () => {
   const popup = await getExtensionPopup(context, extensionId);
   await popup.waitForLoadState('networkidle');
   
@@ -193,36 +194,39 @@ test('Window should return to small view when leaving Search tab', async () => {
   await switchTab(popup, 'search');
   await popup.waitForTimeout(300);
   
+  const searchWidth = await getPopupWidth(popup);
   let hasLarge = await hasLargeView(popup);
   expect(hasLarge).toBe(true);
+  expect(searchWidth).toBeGreaterThan(400);
   
-  // Switch back to Save tab
+  // Switch back to Save tab (same large view)
   await switchTab(popup, 'save');
   await popup.waitForTimeout(300);
   
   hasLarge = await hasLargeView(popup);
-  expect(hasLarge).toBe(false);
+  expect(hasLarge).toBe(true);
   
   const width = await getPopupWidth(popup);
-  expect(width).toBeLessThanOrEqual(400);
+  expect(width).toBe(searchWidth);
+  expect(width).toBeGreaterThan(400);
   
   await popup.close();
 });
 
-test('Settings view should use small view', async () => {
+test('Settings view should use large view', async () => {
   const popup = await getExtensionPopup(context, extensionId);
   await popup.waitForLoadState('networkidle');
   
-  // Open settings
+  // Open settings (same large view as all tabs)
   const settingsIcon = popup.locator('#settings-icon');
   await settingsIcon.click();
   await popup.waitForSelector('#settings-view', { state: 'visible' });
   
   const hasLarge = await hasLargeView(popup);
-  expect(hasLarge).toBe(false);
+  expect(hasLarge).toBe(true);
   
   const width = await getPopupWidth(popup);
-  expect(width).toBeLessThanOrEqual(400);
+  expect(width).toBeGreaterThan(400);
   
   await popup.close();
 });

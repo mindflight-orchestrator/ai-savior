@@ -1,6 +1,6 @@
 import { test, expect, chromium, BrowserContext } from '@playwright/test';
 import { getExtensionId, getExtensionPopup, waitForExtensionReady } from './helpers/extension-helpers';
-import { switchTab, mockSearchResults, waitForSearchResults } from './helpers/popup-helpers';
+import { switchTab, mockSearchResults, mockGetAllTags, waitForSearchResults } from './helpers/popup-helpers';
 import { mockConversations } from './fixtures/mock-conversations';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -213,8 +213,6 @@ test('Tag checkboxes should appear after search', async () => {
   const popup = await getExtensionPopup(context, extensionId);
   await popup.waitForLoadState('networkidle');
   
-  await switchTab(popup, 'search');
-  
   const searchResults = [{
     id: 1,
     canonical_url: 'https://chat.openai.com/c/test',
@@ -224,8 +222,10 @@ test('Tag checkboxes should appear after search', async () => {
     updated_at: new Date().toISOString(),
     tags: ['react', 'javascript'],
   }];
-  
   await mockSearchResults(popup, searchResults);
+  await mockGetAllTags(popup, ['react', 'javascript']);
+  
+  await switchTab(popup, 'search');
   
   const searchInput = popup.locator('#search-input');
   await searchInput.fill('test');
@@ -234,7 +234,7 @@ test('Tag checkboxes should appear after search', async () => {
   await waitForSearchResults(popup);
   await popup.waitForTimeout(200);
   
-  // Check if tags list is populated
+  // Check if tags list is populated (sidebar tags come from getAllTags)
   const tagsList = popup.locator('#search-tags-list');
   await expect(tagsList).toBeVisible();
   
@@ -248,8 +248,6 @@ test('Tag checkboxes should appear after search', async () => {
 test('Selecting tag should filter search results', async () => {
   const popup = await getExtensionPopup(context, extensionId);
   await popup.waitForLoadState('networkidle');
-  
-  await switchTab(popup, 'search');
   
   const searchResults = [
     {
@@ -271,8 +269,10 @@ test('Selecting tag should filter search results', async () => {
       tags: ['python'],
     },
   ];
-  
   await mockSearchResults(popup, searchResults);
+  await mockGetAllTags(popup, ['react', 'javascript', 'python']);
+  
+  await switchTab(popup, 'search');
   
   const searchInput = popup.locator('#search-input');
   await searchInput.fill('test');
@@ -281,7 +281,7 @@ test('Selecting tag should filter search results', async () => {
   await waitForSearchResults(popup);
   await popup.waitForTimeout(200);
   
-  // Click on a tag checkbox
+  // Click on a tag checkbox (sidebar is populated by getAllTags mock)
   const reactTag = popup.locator('#search-tags-list').locator('text=react').first();
   await reactTag.click();
   

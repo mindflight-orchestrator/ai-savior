@@ -172,9 +172,7 @@ test('Snippets should handle load errors', async () => {
   const popup = await getExtensionPopup(context, extensionId);
   await popup.waitForLoadState('networkidle');
   
-  await switchTab(popup, 'snippets');
-  
-  // Mock error response
+  // Mock error response before switching so the first listSnippets call uses it
   await popup.evaluate(() => {
     const originalSendMessage = (window as any).chrome?.runtime?.sendMessage;
     if ((window as any).chrome && (window as any).chrome.runtime) {
@@ -187,6 +185,8 @@ test('Snippets should handle load errors', async () => {
       };
     }
   });
+  
+  await switchTab(popup, 'snippets');
   
   await popup.waitForTimeout(1000); // Wait for error to appear
   

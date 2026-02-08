@@ -73,9 +73,8 @@ test('Snippet cards should display title and metadata', async () => {
   const popup = await getExtensionPopup(context, extensionId);
   await popup.waitForLoadState('networkidle');
   
-  await switchTab(popup, 'snippets');
-  
   await mockSnippets(popup, [mockSnippetsData[0]]);
+  await switchTab(popup, 'snippets');
   
   await waitForSnippets(popup);
   await popup.waitForTimeout(300); // Wait for cards to render
@@ -406,9 +405,8 @@ test('Snippet status should show count', async () => {
   const popup = await getExtensionPopup(context, extensionId);
   await popup.waitForLoadState('networkidle');
   
-  await switchTab(popup, 'snippets');
-  
   await mockSnippets(popup, mockSnippetsData);
+  await switchTab(popup, 'snippets');
   
   await waitForSnippets(popup);
   await popup.waitForTimeout(300); // Wait for status to update

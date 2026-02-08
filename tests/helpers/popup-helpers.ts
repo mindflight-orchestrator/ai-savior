@@ -72,6 +72,25 @@ export async function mockSearchResults(popup: Page, results: any[]) {
 }
 
 /**
+ * Mock chrome.runtime.sendMessage response for getAllTags (search sidebar).
+ * Chain after mockSearchResults so both search results and tag sidebar are populated.
+ */
+export async function mockGetAllTags(popup: Page, tags: string[]) {
+  await popup.evaluate((mockTags) => {
+    const currentSendMessage = (window as any).chrome?.runtime?.sendMessage;
+    if ((window as any).chrome && (window as any).chrome.runtime) {
+      (window as any).chrome.runtime.sendMessage = (message: any, callback: Function) => {
+        if (message.action === 'getAllTags') {
+          setTimeout(() => callback({ tags: mockTags }), 0);
+        } else if (currentSendMessage) {
+          currentSendMessage(message, callback);
+        }
+      };
+    }
+  }, tags);
+}
+
+/**
  * Mock chrome.runtime.sendMessage response for listSnippets
  */
 export async function mockSnippets(popup: Page, snippets: any[]) {

@@ -106,7 +106,8 @@ test('Cloud settings section should be hidden when Local is selected', async () 
   await popup.close();
 });
 
-test('Selecting Cloud mode should show cloud settings', async () => {
+test.skip('Selecting Cloud mode should show cloud settings', async () => {
+  // Cloud/PostgreSQL option is deactivated in the UI
   const popup = await getExtensionPopup(context, extensionId);
   await popup.waitForLoadState('networkidle');
   
@@ -127,7 +128,8 @@ test('Selecting Cloud mode should show cloud settings', async () => {
   await popup.close();
 });
 
-test('Cloud settings should have PostgREST URL input', async () => {
+test.skip('Cloud settings should have PostgREST URL input', async () => {
+  // Cloud/PostgreSQL option is deactivated in the UI
   const popup = await getExtensionPopup(context, extensionId);
   await popup.waitForLoadState('networkidle');
   
@@ -147,7 +149,8 @@ test('Cloud settings should have PostgREST URL input', async () => {
   await popup.close();
 });
 
-test('Cloud settings should have auth token input', async () => {
+test.skip('Cloud settings should have auth token input', async () => {
+  // Cloud/PostgreSQL option is deactivated in the UI
   const popup = await getExtensionPopup(context, extensionId);
   await popup.waitForLoadState('networkidle');
   
@@ -171,7 +174,8 @@ test('Cloud settings should have auth token input', async () => {
   await popup.close();
 });
 
-test('Connection test button should be visible', async () => {
+test.skip('Connection test button should be visible', async () => {
+  // Cloud/PostgreSQL option is deactivated in the UI
   const popup = await getExtensionPopup(context, extensionId);
   await popup.waitForLoadState('networkidle');
   

@@ -55,29 +55,19 @@ function hideAllTabContents() {
 function updateWindowSize(tabName: string | null) {
   const body = document.body;
   const chatFavicons = document.getElementById('chat-favicons');
-  
-  // Search and Snippets tabs use large view
-  if (tabName === 'search' || tabName === 'snippets') {
-    body.classList.add('large-view');
+
+  // All tabs use large view (same size, no resize when switching)
+  body.classList.add('large-view');
+
+  if (tabName === 'save') {
+    body.classList.add('save-mode');
+    if (window.innerWidth < 450 && chatFavicons) chatFavicons.classList.add('hidden');
+    else if (chatFavicons) chatFavicons.classList.remove('hidden');
+  } else {
     body.classList.remove('save-mode');
     if (chatFavicons) chatFavicons.classList.remove('hidden');
-  } else {
-    body.classList.remove('large-view');
-    // Hide favicons in save mode if window is small
-    if (tabName === 'save') {
-      body.classList.add('save-mode');
-      // Check if window is small (less than 450px)
-      if (window.innerWidth < 450) {
-        if (chatFavicons) chatFavicons.classList.add('hidden');
-      } else {
-        if (chatFavicons) chatFavicons.classList.remove('hidden');
-      }
-    } else {
-      body.classList.remove('save-mode');
-      if (chatFavicons) chatFavicons.classList.remove('hidden');
-    }
   }
-  
+
   // Update body class for small width detection
   if (window.innerWidth < 450) {
     body.classList.add('small-width');
@@ -148,7 +138,7 @@ function showSettingsView() {
   if (tabsBar) tabsBar.style.display = 'none';
   hideAllTabContents();
   if (settingsView) settingsView.style.display = 'block';
-  updateWindowSize(null); // Settings uses small view
+  updateWindowSize(null); // Settings uses same large view
 }
 
 tabs.forEach((tab) => {

@@ -267,7 +267,8 @@ test('Snippet workflow: Create → Filter → Edit → Delete snippet', async ()
   await popup.close();
 });
 
-test('Settings workflow: Change storage mode → Test connection → Update Beast Mode', async () => {
+test.skip('Settings workflow: Change storage mode → Test connection → Update Beast Mode', async () => {
+  // Cloud/PostgreSQL option is deactivated in the UI
   const popup = await getExtensionPopup(context, extensionId);
   await popup.waitForLoadState('networkidle');
   

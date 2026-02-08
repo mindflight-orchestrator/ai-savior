@@ -1,6 +1,6 @@
 import { test, expect, chromium, BrowserContext } from '@playwright/test';
 import { getExtensionId, getExtensionPopup, waitForExtensionReady } from './helpers/extension-helpers';
-import { switchTab, getPopupWidth, hasLargeView, mockSearchResults, mockSnippets } from './helpers/popup-helpers';
+import { switchTab, getPopupWidth, hasLargeView, mockSearchResults, mockSnippets, mockGetAllTags } from './helpers/popup-helpers';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -81,13 +81,13 @@ test('Popup window size should remain consistent across tabs with lots of conten
   const mockConversations = generateMockConversations();
   const mockSnippetsData = generateMockSnippets();
   
-  // Test Save tab size
+  // Test Save tab size (all tabs use large view)
   const saveTabWidth = await getPopupWidth(popup);
   const saveTabHasLarge = await hasLargeView(popup);
-  expect(saveTabHasLarge).toBe(false);
-  expect(saveTabWidth).toBeLessThanOrEqual(400);
+  expect(saveTabHasLarge).toBe(true);
+  expect(saveTabWidth).toBeGreaterThan(400);
   
-  // Switch to Search tab (should be large view)
+  // Switch to Search tab (same large view)
   await switchTab(popup, 'search');
   await popup.waitForTimeout(300);
   
@@ -100,6 +100,7 @@ test('Popup window size should remain consistent across tabs with lots of conten
   const searchTabHasLarge = await hasLargeView(popup);
   expect(searchTabHasLarge).toBe(true);
   expect(searchTabWidth).toBeGreaterThan(400);
+  expect(searchTabWidth).toBe(saveTabWidth);
   
   // Verify search results are scrollable (lots of content)
   const searchResults = popup.locator('#search-results');
@@ -113,14 +114,15 @@ test('Popup window size should remain consistent across tabs with lots of conten
   // Set up snippets mock before switching tabs
   await mockSnippets(popup, mockSnippetsData);
   
-  // Switch to Snippets tab (should be small view)
+  // Switch to Snippets tab (same large view)
   await switchTab(popup, 'snippets');
   await popup.waitForTimeout(1000); // Wait for snippets to load
   
   const snippetsTabWidth = await getPopupWidth(popup);
   const snippetsTabHasLarge = await hasLargeView(popup);
-  expect(snippetsTabHasLarge).toBe(false);
-  expect(snippetsTabWidth).toBeLessThanOrEqual(400);
+  expect(snippetsTabHasLarge).toBe(true);
+  expect(snippetsTabWidth).toBeGreaterThan(400);
+  expect(snippetsTabWidth).toBe(saveTabWidth);
   
   // Verify snippets are scrollable
   const snippetResults = popup.locator('#snippet-results');
@@ -143,16 +145,16 @@ test('Popup window size should remain consistent across tabs with lots of conten
     expect(widthAfterCheck).toBe(snippetsTabWidth);
   }
   
-  // Switch back to Save tab (should be small view)
+  // Switch back to Save tab (same large view)
   await switchTab(popup, 'save');
   await popup.waitForTimeout(300);
   
   const saveTabWidthAfter = await getPopupWidth(popup);
   const saveTabHasLargeAfter = await hasLargeView(popup);
-  expect(saveTabHasLargeAfter).toBe(false);
-  expect(saveTabWidthAfter).toBeLessThanOrEqual(400);
+  expect(saveTabHasLargeAfter).toBe(true);
+  expect(saveTabWidthAfter).toBeGreaterThan(400);
   
-  // Verify size is consistent
+  // Verify size is consistent across all tabs
   expect(saveTabWidthAfter).toBe(saveTabWidth);
   
   await popup.close();
@@ -164,6 +166,8 @@ test('Search tab should maintain large view size with 10+ conversations', async 
   
   const mockConversations = generateMockConversations();
   await mockSearchResults(popup, mockConversations);
+  const allTags = [...new Set(mockConversations.flatMap((c) => c.tags))];
+  await mockGetAllTags(popup, allTags);
   
   await switchTab(popup, 'search');
   await popup.waitForTimeout(300);
@@ -183,7 +187,7 @@ test('Search tab should maintain large view size with 10+ conversations', async 
   const cardCount = await resultCards.count();
   expect(cardCount).toBeGreaterThanOrEqual(10);
   
-  // Verify tags list is populated (should have 10+ unique tags)
+  // Verify tags list is populated (sidebar uses getAllTags mock)
   const tagsList = popup.locator('#search-tags-list');
   await expect(tagsList).toBeVisible();
   await popup.waitForTimeout(300);
@@ -199,7 +203,7 @@ test('Search tab should maintain large view size with 10+ conversations', async 
   await popup.close();
 });
 
-test('Snippets tab should maintain small view size with 10+ snippets', async () => {
+test('Snippets tab should maintain large view size with 10+ snippets', async () => {
   const popup = await getExtensionPopup(context, extensionId);
   await popup.waitForLoadState('networkidle');
   
@@ -209,11 +213,11 @@ test('Snippets tab should maintain small view size with 10+ snippets', async () 
   await switchTab(popup, 'snippets');
   await popup.waitForTimeout(1000); // Wait for snippets to load
   
-  // Verify small view
+  // Verify large view (same size as all tabs)
   const width = await getPopupWidth(popup);
   const hasLarge = await hasLargeView(popup);
-  expect(hasLarge).toBe(false);
-  expect(width).toBeLessThanOrEqual(400);
+  expect(hasLarge).toBe(true);
+  expect(width).toBeGreaterThan(400);
   
   // Verify snippets are displayed
   const snippetResults = popup.locator('#snippet-results');
@@ -330,13 +334,12 @@ test('Window size should be consistent when switching between tabs multiple time
   await popup.waitForTimeout(300);
   widths.push(await getPopupWidth(popup));
   
-  // Verify consistency:
-  // - Save and Snippets should have same width (small)
-  // - Search should have larger width
-  expect(widths[0]).toBe(widths[2]); // Save and Snippets same
-  expect(widths[0]).toBe(widths[4]); // Save consistent
-  expect(widths[1]).toBe(widths[3]); // Search consistent
-  expect(widths[1]).toBeGreaterThan(widths[0]); // Search larger than Save
+  // Verify consistency: all tabs have same width (large view)
+  expect(widths[0]).toBe(widths[1]);
+  expect(widths[0]).toBe(widths[2]);
+  expect(widths[0]).toBe(widths[3]);
+  expect(widths[0]).toBe(widths[4]);
+  expect(widths[0]).toBeGreaterThan(400);
   
   await popup.close();
 });
@@ -347,6 +350,8 @@ test('Tags sidebar should not affect window size in Search tab', async () => {
   
   const mockConversations = generateMockConversations();
   await mockSearchResults(popup, mockConversations);
+  const allTags = [...new Set(mockConversations.flatMap((c) => c.tags))];
+  await mockGetAllTags(popup, allTags);
   
   await switchTab(popup, 'search');
   await popup.waitForTimeout(300);
@@ -358,12 +363,11 @@ test('Tags sidebar should not affect window size in Search tab', async () => {
   // Get initial width
   const initialWidth = await getPopupWidth(popup);
   
-  // Wait for tags to load
+  // Wait for tags to load (sidebar uses getAllTags mock)
   await popup.waitForTimeout(300);
   const tagsList = popup.locator('#search-tags-list');
   await expect(tagsList).toBeVisible();
   
-  // Select some tags
   const tagCheckboxes = popup.locator('#search-tags-list input[type="checkbox"]');
   const tagCount = await tagCheckboxes.count();
   expect(tagCount).toBeGreaterThanOrEqual(10);
