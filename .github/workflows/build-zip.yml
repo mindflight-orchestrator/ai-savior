@@ -1,0 +1,48 @@
+name: Build Chrome extension zip
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build_zip:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Sanity checks
+        run: |
+          test -d dist
+          test -f dist/manifest.json
+
+      - name: Create zip from dist (root = extension files)
+        run: |
+          cd dist
+          zip -r ../chrome-extension.zip .
+          cd ..
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: chrome-extension-dist
+          path: chrome-extension.zip
+          if-no-files-found: error
