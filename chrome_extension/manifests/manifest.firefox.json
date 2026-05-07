@@ -25,7 +25,9 @@
     "https://grok.com/*"
   ],
   "background": {
-    "service_worker": "src/background/service-worker.ts",
+    "scripts": [
+      "src/background/service-worker.ts"
+    ],
     "type": "module"
   },
   "action": {
@@ -49,7 +51,9 @@
         "https://manus.im/*",
         "https://grok.com/*"
       ],
-      "js": ["src/content-scripts/extractor.ts"],
+      "js": [
+        "src/content-scripts/extractor.ts"
+      ],
       "run_at": "document_idle"
     }
   ],
@@ -60,8 +64,17 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["icons/favicons/*"],
-      "matches": ["<all_urls>"]
+      "resources": [
+        "icons/favicons/*"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
     }
-  ]
+  ],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "ai-savior@mindflight.local"
+    }
+  }
 }

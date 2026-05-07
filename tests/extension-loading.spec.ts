@@ -8,6 +8,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 let context: BrowserContext;
 let extensionId: string;
 
+test.describe.configure({ mode: 'serial' });
+
 test.beforeAll(async () => {
   // Launch browser with extension loaded
   const extensionPath = path.resolve(__dirname, '../chrome_extension/dist');

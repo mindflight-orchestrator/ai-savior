@@ -3,6 +3,8 @@ node_modules/
 
 # Build output
 dist/
+brave_extension/dist/
+firefox_extension/dist/
 *.local
 
 # Compiled binaries

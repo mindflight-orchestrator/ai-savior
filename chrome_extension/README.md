@@ -1,6 +1,6 @@
-# AI Saver Chrome Extension
+# AI Savior Browser Extension
 
-Extension Chrome pour sauvegarder et organiser automatiquement vos conversations avec les plateformes IA (ChatGPT, Claude, Perplexity, Kimi).
+Extension navigateur pour sauvegarder et organiser automatiquement vos conversations avec les plateformes IA (ChatGPT, Claude, Perplexity, Kimi). Le code source est commun, avec des builds séparés pour Chrome, Brave et Firefox.
 
 ## Fonctionnalités
 
@@ -17,7 +17,7 @@ Extension Chrome pour sauvegarder et organiser automatiquement vos conversations
 
 - Node.js 18+
 - npm ou pnpm
-- Chrome/Chromium
+- Chrome/Chromium, Brave ou Firefox
 
 ### Installation
 
@@ -25,32 +25,47 @@ Extension Chrome pour sauvegarder et organiser automatiquement vos conversations
 # Installer les dépendances
 npm install
 
-# Construire l'extension en mode développement (watch)
-npm run dev
+# Construire l'extension Chrome en mode développement (watch)
+npm run dev:chrome
 
 # Construire pour la production
-npm run build
+npm run build:chrome
+npm run build:brave
+npm run build:firefox
+
+# Ou tout construire
+npm run build:all
 ```
 
-### Charger l'extension dans Chrome
+### Charger l'extension
 
+Chrome:
 1. Ouvrir Chrome et aller à `chrome://extensions/`
 2. Activer le "Mode développeur" (en haut à droite)
 3. Cliquer sur "Charger l'extension non empaquetée"
-4. Sélectionner le dossier `dist/` du projet
+4. Sélectionner le dossier `chrome_extension/dist/`
+
+Brave:
+1. Ouvrir Brave et aller à `brave://extensions/`
+2. Activer le "Mode développeur"
+3. Charger le dossier `brave_extension/dist/`
+
+Firefox:
+1. Ouvrir Firefox et aller à `about:debugging#/runtime/this-firefox`
+2. Cliquer sur "Load Temporary Add-on"
+3. Sélectionner `firefox_extension/dist/manifest.json`
 
 ### Structure du projet
 
 ```
-src/
-  types/              # Interfaces TypeScript
-  lib/
-    storage/          # Providers de stockage (IndexedDB, PostgREST)
-    extraction/       # Utilitaires d'extraction XPath
-    ui/               # Composants UI (toast, flash notice)
-  background/         # Service Worker
-  content-scripts/    # Scripts injectés dans les pages
-  popup/              # Interface popup de l'extension
+chrome_extension/
+  src/                # Code commun
+  manifests/          # Manifestes par navigateur
+  dist/               # Build Chrome
+brave_extension/
+  dist/               # Build Brave
+firefox_extension/
+  dist/               # Build Firefox
 ```
 
 ## Architecture

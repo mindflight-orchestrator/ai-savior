@@ -1,11 +1,18 @@
 {
-    "name": "ai-saver-chrome-extension",
+    "name": "ai-savior-browser-extension",
     "version": "0.1.0",
-    "description": "Chrome extension to automatically save AI conversations from ChatGPT, Claude, Perplexity, and Kimi",
+    "description": "Browser extension to automatically save AI conversations from ChatGPT, Claude, Perplexity, and Kimi",
     "type": "module",
     "scripts": {
       "dev": "npm run dev --prefix chrome_extension",
+      "dev:chrome": "npm run dev:chrome --prefix chrome_extension",
+      "dev:brave": "npm run dev:brave --prefix chrome_extension",
+      "dev:firefox": "npm run dev:firefox --prefix chrome_extension",
       "build": "npm run build --prefix chrome_extension",
+      "build:chrome": "npm run build:chrome --prefix chrome_extension",
+      "build:brave": "npm run build:brave --prefix chrome_extension",
+      "build:firefox": "npm run build:firefox --prefix chrome_extension",
+      "build:all": "npm run build:all --prefix chrome_extension",
       "preview": "vite preview",
       "icons": "node scripts/generate-icons.js",
       "test": "playwright test",
@@ -15,7 +22,10 @@
       "validate:selectors": "tsx scripts/validate-extractor-selectors.ts"
     },
     "keywords": [
+      "browser-extension",
       "chrome-extension",
+      "firefox-extension",
+      "brave-extension",
       "ai",
       "chatgpt",
       "claude",

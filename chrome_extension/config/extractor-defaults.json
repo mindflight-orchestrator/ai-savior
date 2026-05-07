@@ -1,5 +1,5 @@
 {
-  "description": "Single source of truth for extraction patterns. Each key under hosts is hostname (window.location.hostname). Sync or generate extractor.ts defaultsByDomain from this. Update url-detector.ts and manifest.json when adding hosts. Prefer semantic/stable selectors (Principles Step 2).",
+  "description": "Single source of truth for extraction patterns. Each key under hosts is hostname (window.location.hostname). Sync or generate extractor.ts defaultsByDomain from this. Update url-detector.ts and chrome_extension/manifests/*.json when adding hosts. Prefer semantic/stable selectors (Principles Step 2).",
   "selectorTypes": {
     "semantic": "Attribute-based (e.g. data-message-author-role, data-testid); most stable",
     "id": "Single element ID; stable only if app never changes it",
